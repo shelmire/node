@@ -15,6 +15,7 @@ namespace internal {
 enum class BinaryOperationHint : uint8_t {
   kNone,
   kSignedSmall,
+  kSignedSmallInputs,
   kSigned32,
   kNumberOrOddball,
   kString,
@@ -35,6 +36,7 @@ enum class CompareOperationHint : uint8_t {
   kNumberOrOddball,
   kInternalizedString,
   kString,
+  kSymbol,
   kReceiver,
   kAny
 };
