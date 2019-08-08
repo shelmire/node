@@ -31,44 +31,43 @@ f (:3:22)
 }
 
 Debugger.stepOver called
-f (:4:0)
+f (:3:27)
 f (:3:22)
 f (:3:22)
 f (:3:22)
 (anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOver called
-f (:4:0)
-f (:3:22)
-f (:3:22)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOver called
-f (:4:0)
-f (:3:22)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOver called
-f (:4:0)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOver called
-(anonymous) (:5:5)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
 }
-f(5);#
 
+Debugger.stepOver called
+f (:3:27)
+f (:3:22)
+f (:3:22)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOver called
+f (:3:27)
+f (:3:22)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOver called
+f (:3:27)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOver called
+(anonymous) (:6:0)
+f(5);
+#
 
 Debugger.resume called
 
@@ -83,34 +82,33 @@ function f(x) {
   if (x-- > 0) return f(x);
 
 Debugger.stepOut called
-f (:4:0)
+f (:3:27)
 f (:3:22)
 f (:3:22)
 (anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOut called
-f (:4:0)
-f (:3:22)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOut called
-f (:4:0)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOut called
-(anonymous) (:5:5)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
 }
-f(5);#
 
+Debugger.stepOut called
+f (:3:27)
+f (:3:22)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOut called
+f (:3:27)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOut called
+(anonymous) (:6:0)
+f(5);
+#
 
 Debugger.resume called
 
@@ -145,33 +143,32 @@ f (:3:22)
 }
 
 Debugger.stepOut called
-f (:4:0)
+f (:3:27)
 f (:3:22)
 f (:3:22)
 (anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOut called
-f (:4:0)
-f (:3:22)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOut called
-f (:4:0)
-(anonymous) (:5:0)
-  if (x-- > 0) return f(x);
-#}
-f(5);
-
-Debugger.stepOut called
-(anonymous) (:5:5)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
 }
-f(5);#
 
+Debugger.stepOut called
+f (:3:27)
+f (:3:22)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOut called
+f (:3:27)
+(anonymous) (:5:0)
+  if (x == 2) debugger;
+  if (x-- > 0) return f(x);#
+}
+
+Debugger.stepOut called
+(anonymous) (:6:0)
+f(5);
+#
 
 Debugger.resume called

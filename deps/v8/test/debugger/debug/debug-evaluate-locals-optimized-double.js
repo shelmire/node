@@ -26,12 +26,11 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Flags: --expose-gc
-// Flags: --inline-construct
 
 Debug = debug.Debug
 
 var listenerComplete = false;
-var exception = false;
+var exceptionThrown = false;
 
 var testingConstructCall = false;
 
@@ -128,10 +127,11 @@ function listener(event, exec_state, event_data, data) {
       listenerComplete = true;
     }
   } catch (e) {
-    exception = e.toString() + e.stack;
+    exceptionThrown = true;
   };
 };
 
+%PrepareFunctionForOptimization(f);
 for (var i = 0; i < 4; i++) f(input.length - 1, 11.11, 12.12);
 %OptimizeFunctionOnNextCall(f);
 f(input.length - 1, 11.11, 12.12);
@@ -192,7 +192,7 @@ new f(input.length - 1, 11.11, 12.12);
 new f(input.length - 1, 11.11, 12.12, "");
 
 // Make sure that the debug event listener was invoked.
-assertFalse(exception, "exception in listener " + exception)
+assertFalse(exceptionThrown, "exception in listener");
 assertTrue(listenerComplete);
 
 //Throw away type information for next run.

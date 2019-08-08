@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turbo --turbo-escape
+// Flags: --allow-natives-syntax --turbo-escape
 
 function foo() {
   var o = {x:0};
@@ -13,6 +13,7 @@ function foo() {
  function bar() {i};
  return o.x;
 }
+%PrepareFunctionForOptimization(foo);
 foo();
 foo();
 %OptimizeFunctionOnNextCall(foo);

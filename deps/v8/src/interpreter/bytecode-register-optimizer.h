@@ -6,7 +6,7 @@
 #define V8_INTERPRETER_BYTECODE_REGISTER_OPTIMIZER_H_
 
 #include "src/base/compiler-specific.h"
-#include "src/globals.h"
+#include "src/common/globals.h"
 #include "src/interpreter/bytecode-register-allocator.h"
 
 namespace v8 {
@@ -23,8 +23,8 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
  public:
   class BytecodeWriter {
    public:
-    BytecodeWriter() {}
-    virtual ~BytecodeWriter() {}
+    BytecodeWriter() = default;
+    virtual ~BytecodeWriter() = default;
 
     // Called to emit a register transfer bytecode.
     virtual void EmitLdar(Register input) = 0;
@@ -39,7 +39,7 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
                             BytecodeRegisterAllocator* register_allocator,
                             int fixed_registers_count, int parameter_count,
                             BytecodeWriter* bytecode_writer);
-  virtual ~BytecodeRegisterOptimizer() {}
+  ~BytecodeRegisterOptimizer() override = default;
 
   // Perform explicit register transfer operations.
   void DoLdar(Register input) {
@@ -60,10 +60,11 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
 
   // Materialize all live registers and flush equivalence sets.
   void Flush();
+  bool EnsureAllRegistersAreFlushed() const;
 
   // Prepares for |bytecode|.
   template <Bytecode bytecode, AccumulatorUse accumulator_use>
-  INLINE(void PrepareForBytecode()) {
+  V8_INLINE void PrepareForBytecode() {
     if (Bytecodes::IsJump(bytecode) || Bytecodes::IsSwitch(bytecode) ||
         bytecode == Bytecode::kDebugger ||
         bytecode == Bytecode::kSuspendGenerator ||
@@ -75,7 +76,7 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
       //   aren't known)
       // - a call to the debugger (as it can manipulate locals and parameters),
       // - a generator suspend (as this involves saving all registers).
-      // - a generator resume (as this involves restoring all registers).
+      // - a generator register restore.
       Flush();
     }
 
@@ -131,6 +132,7 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
   void AddToEquivalenceSet(RegisterInfo* set_member,
                            RegisterInfo* non_set_member);
 
+  void PushToRegistersNeedingFlush(RegisterInfo* reg);
   // Methods for finding and creating metadata for each register.
   RegisterInfo* GetRegisterInfo(Register reg) {
     size_t index = GetRegisterInfoTableIndex(reg);
@@ -178,6 +180,8 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
     return equivalence_id_;
   }
 
+  void AllocateRegister(RegisterInfo* info);
+
   Zone* zone() { return zone_; }
 
   const Register accumulator_;
@@ -188,6 +192,8 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
   // Direct mapping to register info.
   ZoneVector<RegisterInfo*> register_info_table_;
   int register_info_table_offset_;
+
+  ZoneDeque<RegisterInfo*> registers_needing_flushed_;
 
   // Counter for equivalence sets identifiers.
   int equivalence_id_;

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --ignition
+// Flags: --allow-natives-syntax
 
 function f() {
   for (var i = 0; i < 3; ++i) {
@@ -15,4 +15,5 @@ function f() {
     throw "no loop, thank you";
   }
 }
+%PrepareFunctionForOptimization(f);
 assertThrows(f);

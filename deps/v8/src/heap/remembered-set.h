@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8_REMEMBERED_SET_H
-#define V8_REMEMBERED_SET_H
+#ifndef V8_HEAP_REMEMBERED_SET_H_
+#define V8_HEAP_REMEMBERED_SET_H_
 
-#include "src/assembler.h"
+#include "src/codegen/reloc-info.h"
+#include "src/common/v8memory.h"
 #include "src/heap/heap.h"
 #include "src/heap/slot-set.h"
 #include "src/heap/spaces.h"
@@ -21,14 +22,16 @@ class RememberedSet : public AllStatic {
  public:
   // Given a page and a slot in that page, this function adds the slot to the
   // remembered set.
+  template <AccessMode access_mode = AccessMode::ATOMIC>
   static void Insert(MemoryChunk* chunk, Address slot_addr) {
     DCHECK(chunk->Contains(slot_addr));
-    SlotSet* slot_set = chunk->slot_set<type>();
+    SlotSet* slot_set = chunk->slot_set<type, access_mode>();
     if (slot_set == nullptr) {
       slot_set = chunk->AllocateSlotSet<type>();
     }
     uintptr_t offset = slot_addr - chunk->address();
-    slot_set[offset / Page::kPageSize].Insert(offset % Page::kPageSize);
+    slot_set[offset / Page::kPageSize].Insert<access_mode>(offset %
+                                                           Page::kPageSize);
   }
 
   // Given a page and a slot in that page, this function returns true if
@@ -113,12 +116,13 @@ class RememberedSet : public AllStatic {
   // The callback should take (MemoryChunk* chunk) and return void.
   template <typename Callback>
   static void IterateMemoryChunks(Heap* heap, Callback callback) {
-    MemoryChunkIterator it(heap);
+    OldGenerationMemoryChunkIterator it(heap);
     MemoryChunk* chunk;
     while ((chunk = it.next()) != nullptr) {
       SlotSet* slots = chunk->slot_set<type>();
       TypedSlotSet* typed_slots = chunk->typed_slot_set<type>();
-      if (slots != nullptr || typed_slots != nullptr) {
+      if (slots != nullptr || typed_slots != nullptr ||
+          chunk->invalidated_slots() != nullptr) {
         callback(chunk);
       }
     }
@@ -127,15 +131,18 @@ class RememberedSet : public AllStatic {
   // Iterates and filters the remembered set in the given memory chunk with
   // the given callback. The callback should take (Address slot) and return
   // SlotCallbackResult.
+  //
+  // Notice that |mode| can only be of FREE* or PREFREE* if there are no other
+  // threads concurrently inserting slots.
   template <typename Callback>
-  static void Iterate(MemoryChunk* chunk, Callback callback) {
+  static void Iterate(MemoryChunk* chunk, Callback callback,
+                      SlotSet::EmptyBucketMode mode) {
     SlotSet* slots = chunk->slot_set<type>();
     if (slots != nullptr) {
       size_t pages = (chunk->size() + Page::kPageSize - 1) / Page::kPageSize;
       int new_count = 0;
       for (size_t page = 0; page < pages; page++) {
-        new_count +=
-            slots[page].Iterate(callback, SlotSet::PREFREE_EMPTY_BUCKETS);
+        new_count += slots[page].Iterate(callback, mode);
       }
       // Only old-to-old slot sets are released eagerly. Old-new-slot sets are
       // released by the sweeper threads.
@@ -145,23 +152,59 @@ class RememberedSet : public AllStatic {
     }
   }
 
+  static int NumberOfPreFreedEmptyBuckets(MemoryChunk* chunk) {
+    DCHECK(type == OLD_TO_NEW);
+    int result = 0;
+    SlotSet* slots = chunk->slot_set<type>();
+    if (slots != nullptr) {
+      size_t pages = (chunk->size() + Page::kPageSize - 1) / Page::kPageSize;
+      for (size_t page = 0; page < pages; page++) {
+        result += slots[page].NumberOfPreFreedEmptyBuckets();
+      }
+    }
+    return result;
+  }
+
+  static void PreFreeEmptyBuckets(MemoryChunk* chunk) {
+    DCHECK(type == OLD_TO_NEW);
+    SlotSet* slots = chunk->slot_set<type>();
+    if (slots != nullptr) {
+      size_t pages = (chunk->size() + Page::kPageSize - 1) / Page::kPageSize;
+      for (size_t page = 0; page < pages; page++) {
+        slots[page].PreFreeEmptyBuckets();
+      }
+    }
+  }
+
+  static void FreeEmptyBuckets(MemoryChunk* chunk) {
+    DCHECK(type == OLD_TO_NEW);
+    SlotSet* slots = chunk->slot_set<type>();
+    if (slots != nullptr) {
+      size_t pages = (chunk->size() + Page::kPageSize - 1) / Page::kPageSize;
+      for (size_t page = 0; page < pages; page++) {
+        slots[page].FreeEmptyBuckets();
+        slots[page].FreeToBeFreedBuckets();
+      }
+    }
+  }
+
   // Given a page and a typed slot in that page, this function adds the slot
   // to the remembered set.
-  static void InsertTyped(Page* page, Address host_addr, SlotType slot_type,
-                          Address slot_addr) {
+  static void InsertTyped(MemoryChunk* memory_chunk, SlotType slot_type,
+                          uint32_t offset) {
+    TypedSlotSet* slot_set = memory_chunk->typed_slot_set<type>();
+    if (slot_set == nullptr) {
+      slot_set = memory_chunk->AllocateTypedSlotSet<type>();
+    }
+    slot_set->Insert(slot_type, offset);
+  }
+
+  static void MergeTyped(MemoryChunk* page, std::unique_ptr<TypedSlots> slots) {
     TypedSlotSet* slot_set = page->typed_slot_set<type>();
     if (slot_set == nullptr) {
       slot_set = page->AllocateTypedSlotSet<type>();
     }
-    if (host_addr == nullptr) {
-      host_addr = page->address();
-    }
-    uintptr_t offset = slot_addr - page->address();
-    uintptr_t host_offset = host_addr - page->address();
-    DCHECK_LT(offset, static_cast<uintptr_t>(TypedSlotSet::kMaxOffset));
-    DCHECK_LT(host_offset, static_cast<uintptr_t>(TypedSlotSet::kMaxOffset));
-    slot_set->Insert(slot_type, static_cast<uint32_t>(host_offset),
-                     static_cast<uint32_t>(offset));
+    slot_set->Merge(slots.get());
   }
 
   // Given a page and a range of typed slots in that page, this function removes
@@ -170,8 +213,7 @@ class RememberedSet : public AllStatic {
     TypedSlotSet* slots = page->typed_slot_set<type>();
     if (slots != nullptr) {
       slots->Iterate(
-          [start, end](SlotType slot_type, Address host_addr,
-                       Address slot_addr) {
+          [=](SlotType slot_type, Address slot_addr) {
             return start <= slot_addr && slot_addr < end ? REMOVE_SLOT
                                                          : KEEP_SLOT;
           },
@@ -180,7 +222,7 @@ class RememberedSet : public AllStatic {
   }
 
   // Iterates and filters the remembered set with the given callback.
-  // The callback should take (SlotType slot_type, SlotAddress slot) and return
+  // The callback should take (SlotType slot_type, Address addr) and return
   // SlotCallbackResult.
   template <typename Callback>
   static void IterateTyped(Heap* heap, RememberedSetIterationMode mode,
@@ -194,7 +236,7 @@ class RememberedSet : public AllStatic {
 
   // Iterates and filters typed old to old pointers in the given memory chunk
   // with the given callback. The callback should take (SlotType slot_type,
-  // Address slot_addr) and return SlotCallbackResult.
+  // Address addr) and return SlotCallbackResult.
   template <typename Callback>
   static void IterateTyped(MemoryChunk* chunk, Callback callback) {
     TypedSlotSet* slots = chunk->typed_slot_set<type>();
@@ -209,157 +251,114 @@ class RememberedSet : public AllStatic {
   // Clear all old to old slots from the remembered set.
   static void ClearAll(Heap* heap) {
     STATIC_ASSERT(type == OLD_TO_OLD);
-    MemoryChunkIterator it(heap);
+    OldGenerationMemoryChunkIterator it(heap);
     MemoryChunk* chunk;
     while ((chunk = it.next()) != nullptr) {
       chunk->ReleaseSlotSet<OLD_TO_OLD>();
       chunk->ReleaseTypedSlotSet<OLD_TO_OLD>();
+      chunk->ReleaseInvalidatedSlots();
     }
   }
 
-  // Eliminates all stale slots from the remembered set, i.e.
-  // slots that are not part of live objects anymore. This method must be
-  // called after marking, when the whole transitive closure is known and
-  // must be called before sweeping when mark bits are still intact.
-  static void ClearInvalidTypedSlots(Heap* heap, MemoryChunk* chunk);
-
  private:
-  static bool IsValidSlot(Heap* heap, MemoryChunk* chunk, Object** slot);
+  static bool IsValidSlot(Heap* heap, MemoryChunk* chunk, ObjectSlot slot);
 };
 
 class UpdateTypedSlotHelper {
  public:
-  // Updates a cell slot using an untyped slot callback.
-  // The callback accepts Object** and returns SlotCallbackResult.
+  // Updates a typed slot using an untyped slot callback where |addr| depending
+  // on slot type represents either address for respective RelocInfo or address
+  // of the uncompressed constant pool entry.
+  // The callback accepts FullMaybeObjectSlot and returns SlotCallbackResult.
   template <typename Callback>
-  static SlotCallbackResult UpdateCell(RelocInfo* rinfo, Callback callback) {
-    DCHECK(rinfo->rmode() == RelocInfo::CELL);
-    Object* cell = rinfo->target_cell();
-    Object* old_cell = cell;
-    SlotCallbackResult result = callback(&cell);
-    if (cell != old_cell) {
-      rinfo->set_target_cell(reinterpret_cast<Cell*>(cell));
-    }
-    return result;
-  }
-
-  // Updates a code entry slot using an untyped slot callback.
-  // The callback accepts Object** and returns SlotCallbackResult.
-  template <typename Callback>
-  static SlotCallbackResult UpdateCodeEntry(Address entry_address,
-                                            Callback callback) {
-    Object* code = Code::GetObjectFromEntryAddress(entry_address);
-    Object* old_code = code;
-    SlotCallbackResult result = callback(&code);
-    if (code != old_code) {
-      Memory::Address_at(entry_address) =
-          reinterpret_cast<Code*>(code)->entry();
-    }
-    return result;
-  }
-
-  // Updates a code target slot using an untyped slot callback.
-  // The callback accepts Object** and returns SlotCallbackResult.
-  template <typename Callback>
-  static SlotCallbackResult UpdateCodeTarget(RelocInfo* rinfo,
-                                             Callback callback) {
-    DCHECK(RelocInfo::IsCodeTarget(rinfo->rmode()));
-    Code* old_target = Code::GetCodeFromTargetAddress(rinfo->target_address());
-    Object* new_target = old_target;
-    SlotCallbackResult result = callback(&new_target);
-    if (new_target != old_target) {
-      rinfo->set_target_address(old_target->GetIsolate(),
-                                Code::cast(new_target)->instruction_start());
-    }
-    return result;
-  }
-
-  // Updates an embedded pointer slot using an untyped slot callback.
-  // The callback accepts Object** and returns SlotCallbackResult.
-  template <typename Callback>
-  static SlotCallbackResult UpdateEmbeddedPointer(RelocInfo* rinfo,
-                                                  Callback callback) {
-    DCHECK(rinfo->rmode() == RelocInfo::EMBEDDED_OBJECT);
-    HeapObject* old_target = rinfo->target_object();
-    Object* new_target = old_target;
-    SlotCallbackResult result = callback(&new_target);
-    if (new_target != old_target) {
-      rinfo->set_target_object(HeapObject::cast(new_target));
-    }
-    return result;
-  }
-
-  // Updates a debug target slot using an untyped slot callback.
-  // The callback accepts Object** and returns SlotCallbackResult.
-  template <typename Callback>
-  static SlotCallbackResult UpdateDebugTarget(RelocInfo* rinfo,
-                                              Callback callback) {
-    DCHECK(RelocInfo::IsDebugBreakSlot(rinfo->rmode()) &&
-           rinfo->IsPatchedDebugBreakSlotSequence());
-    Code* old_target =
-        Code::GetCodeFromTargetAddress(rinfo->debug_call_address());
-    Object* new_target = old_target;
-    SlotCallbackResult result = callback(&new_target);
-    rinfo->set_debug_call_address(old_target->GetIsolate(),
-                                  Code::cast(new_target)->instruction_start());
-    return result;
-  }
-
-  // Updates a typed slot using an untyped slot callback.
-  // The callback accepts Object** and returns SlotCallbackResult.
-  template <typename Callback>
-  static SlotCallbackResult UpdateTypedSlot(Isolate* isolate,
-                                            SlotType slot_type, Address addr,
-                                            Callback callback) {
+  static SlotCallbackResult UpdateTypedSlot(Heap* heap, SlotType slot_type,
+                                            Address addr, Callback callback) {
     switch (slot_type) {
       case CODE_TARGET_SLOT: {
-        RelocInfo rinfo(addr, RelocInfo::CODE_TARGET, 0, NULL);
+        RelocInfo rinfo(addr, RelocInfo::CODE_TARGET, 0, Code());
         return UpdateCodeTarget(&rinfo, callback);
-      }
-      case CELL_TARGET_SLOT: {
-        RelocInfo rinfo(addr, RelocInfo::CELL, 0, NULL);
-        return UpdateCell(&rinfo, callback);
       }
       case CODE_ENTRY_SLOT: {
         return UpdateCodeEntry(addr, callback);
       }
-      case DEBUG_TARGET_SLOT: {
-        RelocInfo rinfo(addr, RelocInfo::DEBUG_BREAK_SLOT_AT_POSITION, 0, NULL);
-        if (rinfo.IsPatchedDebugBreakSlotSequence()) {
-          return UpdateDebugTarget(&rinfo, callback);
-        }
-        return REMOVE_SLOT;
+      case COMPRESSED_EMBEDDED_OBJECT_SLOT: {
+        RelocInfo rinfo(addr, RelocInfo::COMPRESSED_EMBEDDED_OBJECT, 0, Code());
+        return UpdateEmbeddedPointer(heap, &rinfo, callback);
       }
-      case EMBEDDED_OBJECT_SLOT: {
-        RelocInfo rinfo(addr, RelocInfo::EMBEDDED_OBJECT, 0, NULL);
-        return UpdateEmbeddedPointer(&rinfo, callback);
+      case FULL_EMBEDDED_OBJECT_SLOT: {
+        RelocInfo rinfo(addr, RelocInfo::FULL_EMBEDDED_OBJECT, 0, Code());
+        return UpdateEmbeddedPointer(heap, &rinfo, callback);
       }
       case OBJECT_SLOT: {
-        return callback(reinterpret_cast<Object**>(addr));
+        return callback(FullMaybeObjectSlot(addr));
       }
       case CLEARED_SLOT:
         break;
     }
     UNREACHABLE();
-    return REMOVE_SLOT;
+  }
+
+ private:
+  // Updates a code entry slot using an untyped slot callback.
+  // The callback accepts FullMaybeObjectSlot and returns SlotCallbackResult.
+  template <typename Callback>
+  static SlotCallbackResult UpdateCodeEntry(Address entry_address,
+                                            Callback callback) {
+    Code code = Code::GetObjectFromEntryAddress(entry_address);
+    Code old_code = code;
+    SlotCallbackResult result = callback(FullMaybeObjectSlot(&code));
+    DCHECK(!HasWeakHeapObjectTag(code));
+    if (code != old_code) {
+      Memory<Address>(entry_address) = code.entry();
+    }
+    return result;
+  }
+
+  // Updates a code target slot using an untyped slot callback.
+  // The callback accepts FullMaybeObjectSlot and returns SlotCallbackResult.
+  template <typename Callback>
+  static SlotCallbackResult UpdateCodeTarget(RelocInfo* rinfo,
+                                             Callback callback) {
+    DCHECK(RelocInfo::IsCodeTargetMode(rinfo->rmode()));
+    Code old_target = Code::GetCodeFromTargetAddress(rinfo->target_address());
+    Code new_target = old_target;
+    SlotCallbackResult result = callback(FullMaybeObjectSlot(&new_target));
+    DCHECK(!HasWeakHeapObjectTag(new_target));
+    if (new_target != old_target) {
+      rinfo->set_target_address(Code::cast(new_target).raw_instruction_start());
+    }
+    return result;
+  }
+
+  // Updates an embedded pointer slot using an untyped slot callback.
+  // The callback accepts FullMaybeObjectSlot and returns SlotCallbackResult.
+  template <typename Callback>
+  static SlotCallbackResult UpdateEmbeddedPointer(Heap* heap, RelocInfo* rinfo,
+                                                  Callback callback) {
+    DCHECK(RelocInfo::IsEmbeddedObjectMode(rinfo->rmode()));
+    HeapObject old_target = rinfo->target_object_no_host(heap->isolate());
+    HeapObject new_target = old_target;
+    SlotCallbackResult result = callback(FullMaybeObjectSlot(&new_target));
+    DCHECK(!HasWeakHeapObjectTag(new_target));
+    if (new_target != old_target) {
+      rinfo->set_target_object(heap, HeapObject::cast(new_target));
+    }
+    return result;
   }
 };
 
 inline SlotType SlotTypeForRelocInfoMode(RelocInfo::Mode rmode) {
-  if (RelocInfo::IsCodeTarget(rmode)) {
+  if (RelocInfo::IsCodeTargetMode(rmode)) {
     return CODE_TARGET_SLOT;
-  } else if (RelocInfo::IsCell(rmode)) {
-    return CELL_TARGET_SLOT;
-  } else if (RelocInfo::IsEmbeddedObject(rmode)) {
-    return EMBEDDED_OBJECT_SLOT;
-  } else if (RelocInfo::IsDebugBreakSlot(rmode)) {
-    return DEBUG_TARGET_SLOT;
+  } else if (RelocInfo::IsFullEmbeddedObject(rmode)) {
+    return FULL_EMBEDDED_OBJECT_SLOT;
+  } else if (RelocInfo::IsCompressedEmbeddedObject(rmode)) {
+    return COMPRESSED_EMBEDDED_OBJECT_SLOT;
   }
   UNREACHABLE();
-  return CLEARED_SLOT;
 }
 
 }  // namespace internal
 }  // namespace v8
 
-#endif  // V8_REMEMBERED_SET_H
+#endif  // V8_HEAP_REMEMBERED_SET_H_

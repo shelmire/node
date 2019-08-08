@@ -9,7 +9,7 @@ var test = require('tap').test
 
 var common = require('../common-tap.js')
 
-var dir = path.resolve(__dirname, path.basename(__filename, '.js'))
+var dir = common.pkg
 var pkg = path.resolve(dir, 'pkg-with-bundled')
 var dep = path.resolve(dir, 'a-bundled-dep')
 
@@ -34,7 +34,7 @@ test('setup', function (t) {
   t.end()
 })
 
-test('errors on non-array bundleddependencies', function (t) {
+test('handles non-array bundleddependencies', function (t) {
   return Bluebird.try(() => {
     return common.npm(['pack', 'a-bundled-dep/'], {cwd: dir, stdio: [0, 1, 2]})
   }).spread((code) => {
@@ -44,8 +44,8 @@ test('errors on non-array bundleddependencies', function (t) {
     t.is(code, 0, 'prepared pkg-with-bundled')
     return common.npm(['pack', 'pkg-with-bundled/'], {cwd: dir, stdio: [0, 1, 'pipe']})
   }).spread((code, _, stderr) => {
-    t.notEqual(code, 0, 'exited with a error code')
-    t.like(stderr, /be an array/, 'nice error output')
+    t.equal(code, 0, 'exited with a error code')
+    t.equal(stderr, '')
   })
 })
 

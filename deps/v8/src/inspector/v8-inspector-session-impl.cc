@@ -4,6 +4,8 @@
 
 #include "src/inspector/v8-inspector-session-impl.h"
 
+#include "src/base/logging.h"
+#include "src/base/macros.h"
 #include "src/inspector/injected-script.h"
 #include "src/inspector/inspected-context.h"
 #include "src/inspector/protocol/Protocol.h"
@@ -15,11 +17,45 @@
 #include "src/inspector/v8-debugger.h"
 #include "src/inspector/v8-heap-profiler-agent-impl.h"
 #include "src/inspector/v8-inspector-impl.h"
+#include "src/inspector/v8-inspector-protocol-encoding.h"
 #include "src/inspector/v8-profiler-agent-impl.h"
 #include "src/inspector/v8-runtime-agent-impl.h"
 #include "src/inspector/v8-schema-agent-impl.h"
 
 namespace v8_inspector {
+namespace {
+using ::v8_inspector_protocol_encoding::span;
+using ::v8_inspector_protocol_encoding::SpanFrom;
+using IPEStatus = ::v8_inspector_protocol_encoding::Status;
+
+bool IsCBORMessage(const StringView& msg) {
+  return msg.is8Bit() && msg.length() >= 2 && msg.characters8()[0] == 0xd8 &&
+         msg.characters8()[1] == 0x5a;
+}
+
+IPEStatus ConvertToCBOR(const StringView& state, std::vector<uint8_t>* cbor) {
+  return state.is8Bit()
+             ? ConvertJSONToCBOR(
+                   span<uint8_t>(state.characters8(), state.length()), cbor)
+             : ConvertJSONToCBOR(
+                   span<uint16_t>(state.characters16(), state.length()), cbor);
+}
+
+std::unique_ptr<protocol::DictionaryValue> ParseState(const StringView& state) {
+  std::vector<uint8_t> converted;
+  span<uint8_t> cbor;
+  if (IsCBORMessage(state))
+    cbor = span<uint8_t>(state.characters8(), state.length());
+  else if (ConvertToCBOR(state, &converted).ok())
+    cbor = SpanFrom(converted);
+  if (!cbor.empty()) {
+    std::unique_ptr<protocol::Value> value =
+        protocol::Value::parseBinary(cbor.data(), cbor.size());
+    if (value) return protocol::DictionaryValue::cast(std::move(value));
+  }
+  return protocol::DictionaryValue::create();
+}
+}  // namespace
 
 // static
 bool V8InspectorSession::canDispatchMethod(const StringView& method) {
@@ -43,36 +79,31 @@ int V8ContextInfo::executionContextId(v8::Local<v8::Context> context) {
 }
 
 std::unique_ptr<V8InspectorSessionImpl> V8InspectorSessionImpl::create(
-    V8InspectorImpl* inspector, int contextGroupId,
+    V8InspectorImpl* inspector, int contextGroupId, int sessionId,
     V8Inspector::Channel* channel, const StringView& state) {
-  return std::unique_ptr<V8InspectorSessionImpl>(
-      new V8InspectorSessionImpl(inspector, contextGroupId, channel, state));
+  return std::unique_ptr<V8InspectorSessionImpl>(new V8InspectorSessionImpl(
+      inspector, contextGroupId, sessionId, channel, state));
 }
 
 V8InspectorSessionImpl::V8InspectorSessionImpl(V8InspectorImpl* inspector,
                                                int contextGroupId,
+                                               int sessionId,
                                                V8Inspector::Channel* channel,
                                                const StringView& savedState)
     : m_contextGroupId(contextGroupId),
+      m_sessionId(sessionId),
       m_inspector(inspector),
       m_channel(channel),
       m_customObjectFormatterEnabled(false),
       m_dispatcher(this),
-      m_state(nullptr),
+      m_state(ParseState(savedState)),
       m_runtimeAgent(nullptr),
       m_debuggerAgent(nullptr),
       m_heapProfilerAgent(nullptr),
       m_profilerAgent(nullptr),
       m_consoleAgent(nullptr),
       m_schemaAgent(nullptr) {
-  if (savedState.length()) {
-    std::unique_ptr<protocol::Value> state =
-        protocol::StringUtil::parseJSON(toString16(savedState));
-    if (state) m_state = protocol::DictionaryValue::cast(std::move(state));
-    if (!m_state) m_state = protocol::DictionaryValue::create();
-  } else {
-    m_state = protocol::DictionaryValue::create();
-  }
+  m_state->getBoolean("use_binary_protocol", &use_binary_protocol_);
 
   m_runtimeAgent.reset(new V8RuntimeAgentImpl(
       this, this, agentState(protocol::Runtime::Metainfo::domainName)));
@@ -109,13 +140,12 @@ V8InspectorSessionImpl::V8InspectorSessionImpl(V8InspectorImpl* inspector,
 }
 
 V8InspectorSessionImpl::~V8InspectorSessionImpl() {
+  discardInjectedScripts();
   m_consoleAgent->disable();
   m_profilerAgent->disable();
   m_heapProfilerAgent->disable();
   m_debuggerAgent->disable();
   m_runtimeAgent->disable();
-
-  discardInjectedScripts();
   m_inspector->disconnect(this);
 }
 
@@ -136,37 +166,55 @@ namespace {
 class MessageBuffer : public StringBuffer {
  public:
   static std::unique_ptr<MessageBuffer> create(
-      std::unique_ptr<protocol::Serializable> message) {
+      std::unique_ptr<protocol::Serializable> message, bool binary) {
     return std::unique_ptr<MessageBuffer>(
-        new MessageBuffer(std::move(message)));
+        new MessageBuffer(std::move(message), binary));
   }
 
   const StringView& string() override {
     if (!m_serialized) {
-      m_serialized = StringBuffer::create(toStringView(m_message->serialize()));
+      if (m_binary) {
+        // Encode binary response as an 8bit string buffer.
+        m_serialized.reset(
+            new BinaryStringBuffer(m_message->serializeToBinary()));
+      } else {
+        m_serialized =
+            StringBuffer::create(toStringView(m_message->serializeToJSON()));
+      }
       m_message.reset(nullptr);
     }
     return m_serialized->string();
   }
 
  private:
-  explicit MessageBuffer(std::unique_ptr<protocol::Serializable> message)
-      : m_message(std::move(message)) {}
+  explicit MessageBuffer(std::unique_ptr<protocol::Serializable> message,
+                         bool binary)
+      : m_message(std::move(message)), m_binary(binary) {}
 
   std::unique_ptr<protocol::Serializable> m_message;
   std::unique_ptr<StringBuffer> m_serialized;
+  bool m_binary;
 };
 
 }  // namespace
 
 void V8InspectorSessionImpl::sendProtocolResponse(
     int callId, std::unique_ptr<protocol::Serializable> message) {
-  m_channel->sendResponse(callId, MessageBuffer::create(std::move(message)));
+  m_channel->sendResponse(
+      callId, MessageBuffer::create(std::move(message), use_binary_protocol_));
 }
 
 void V8InspectorSessionImpl::sendProtocolNotification(
     std::unique_ptr<protocol::Serializable> message) {
-  m_channel->sendNotification(MessageBuffer::create(std::move(message)));
+  m_channel->sendNotification(
+      MessageBuffer::create(std::move(message), use_binary_protocol_));
+}
+
+void V8InspectorSessionImpl::fallThrough(
+    int callId, const String16& method,
+    const protocol::ProtocolMessage& message) {
+  // There's no other layer to handle the command.
+  UNREACHABLE();
 }
 
 void V8InspectorSessionImpl::flushProtocolNotifications() {
@@ -181,46 +229,25 @@ void V8InspectorSessionImpl::reset() {
 
 void V8InspectorSessionImpl::discardInjectedScripts() {
   m_inspectedObjects.clear();
-  const V8InspectorImpl::ContextByIdMap* contexts =
-      m_inspector->contextGroup(m_contextGroupId);
-  if (!contexts) return;
-
-  std::vector<int> keys;
-  keys.reserve(contexts->size());
-  for (auto& idContext : *contexts) keys.push_back(idContext.first);
-  for (auto& key : keys) {
-    contexts = m_inspector->contextGroup(m_contextGroupId);
-    if (!contexts) continue;
-    auto contextIt = contexts->find(key);
-    if (contextIt != contexts->end())
-      contextIt->second
-          ->discardInjectedScript();  // This may destroy some contexts.
-  }
+  int sessionId = m_sessionId;
+  m_inspector->forEachContext(m_contextGroupId,
+                              [&sessionId](InspectedContext* context) {
+                                context->discardInjectedScript(sessionId);
+                              });
 }
 
 Response V8InspectorSessionImpl::findInjectedScript(
     int contextId, InjectedScript*& injectedScript) {
   injectedScript = nullptr;
-  if (!contextId)
-    return Response::Error("Cannot find context with specified id");
-
-  const V8InspectorImpl::ContextByIdMap* contexts =
-      m_inspector->contextGroup(m_contextGroupId);
-  if (!contexts)
-    return Response::Error("Cannot find context with specified id");
-
-  auto contextsIt = contexts->find(contextId);
-  if (contextsIt == contexts->end())
-    return Response::Error("Cannot find context with specified id");
-
-  const std::unique_ptr<InspectedContext>& context = contextsIt->second;
-  if (!context->getInjectedScript()) {
-    if (!context->createInjectedScript())
-      return Response::Error("Cannot access specified execution context");
+  InspectedContext* context =
+      m_inspector->getContext(m_contextGroupId, contextId);
+  if (!context) return Response::Error("Cannot find context with specified id");
+  injectedScript = context->getInjectedScript(m_sessionId);
+  if (!injectedScript) {
+    injectedScript = context->createInjectedScript(m_sessionId);
     if (m_customObjectFormatterEnabled)
-      context->getInjectedScript()->setCustomObjectFormatterEnabled(true);
+      injectedScript->setCustomObjectFormatterEnabled(true);
   }
-  injectedScript = context->getInjectedScript();
   return Response::OK();
 }
 
@@ -234,22 +261,12 @@ void V8InspectorSessionImpl::releaseObjectGroup(const StringView& objectGroup) {
 }
 
 void V8InspectorSessionImpl::releaseObjectGroup(const String16& objectGroup) {
-  const V8InspectorImpl::ContextByIdMap* contexts =
-      m_inspector->contextGroup(m_contextGroupId);
-  if (!contexts) return;
-
-  std::vector<int> keys;
-  for (auto& idContext : *contexts) keys.push_back(idContext.first);
-  for (auto& key : keys) {
-    contexts = m_inspector->contextGroup(m_contextGroupId);
-    if (!contexts) continue;
-    auto contextsIt = contexts->find(key);
-    if (contextsIt == contexts->end()) continue;
-    InjectedScript* injectedScript = contextsIt->second->getInjectedScript();
-    if (injectedScript)
-      injectedScript->releaseObjectGroup(
-          objectGroup);  // This may destroy some contexts.
-  }
+  int sessionId = m_sessionId;
+  m_inspector->forEachContext(
+      m_contextGroupId, [&objectGroup, &sessionId](InspectedContext* context) {
+        InjectedScript* injectedScript = context->getInjectedScript(sessionId);
+        if (injectedScript) injectedScript->releaseObjectGroup(objectGroup);
+      });
 }
 
 bool V8InspectorSessionImpl::unwrapObject(
@@ -290,8 +307,9 @@ Response V8InspectorSessionImpl::unwrapObject(const String16& objectId,
 std::unique_ptr<protocol::Runtime::API::RemoteObject>
 V8InspectorSessionImpl::wrapObject(v8::Local<v8::Context> context,
                                    v8::Local<v8::Value> value,
-                                   const StringView& groupName) {
-  return wrapObject(context, value, toString16(groupName), false);
+                                   const StringView& groupName,
+                                   bool generatePreview) {
+  return wrapObject(context, value, toString16(groupName), generatePreview);
 }
 
 std::unique_ptr<protocol::Runtime::RemoteObject>
@@ -303,14 +321,16 @@ V8InspectorSessionImpl::wrapObject(v8::Local<v8::Context> context,
   findInjectedScript(InspectedContext::contextId(context), injectedScript);
   if (!injectedScript) return nullptr;
   std::unique_ptr<protocol::Runtime::RemoteObject> result;
-  injectedScript->wrapObject(value, groupName, false, generatePreview, &result);
+  injectedScript->wrapObject(
+      value, groupName,
+      generatePreview ? WrapMode::kWithPreview : WrapMode::kNoPreview, &result);
   return result;
 }
 
 std::unique_ptr<protocol::Runtime::RemoteObject>
 V8InspectorSessionImpl::wrapTable(v8::Local<v8::Context> context,
-                                  v8::Local<v8::Value> table,
-                                  v8::Local<v8::Value> columns) {
+                                  v8::Local<v8::Object> table,
+                                  v8::MaybeLocal<v8::Array> columns) {
   InjectedScript* injectedScript = nullptr;
   findInjectedScript(InspectedContext::contextId(context), injectedScript);
   if (!injectedScript) return nullptr;
@@ -319,32 +339,59 @@ V8InspectorSessionImpl::wrapTable(v8::Local<v8::Context> context,
 
 void V8InspectorSessionImpl::setCustomObjectFormatterEnabled(bool enabled) {
   m_customObjectFormatterEnabled = enabled;
-  const V8InspectorImpl::ContextByIdMap* contexts =
-      m_inspector->contextGroup(m_contextGroupId);
-  if (!contexts) return;
-  for (auto& idContext : *contexts) {
-    InjectedScript* injectedScript = idContext.second->getInjectedScript();
-    if (injectedScript)
-      injectedScript->setCustomObjectFormatterEnabled(enabled);
-  }
+  int sessionId = m_sessionId;
+  m_inspector->forEachContext(
+      m_contextGroupId, [&enabled, &sessionId](InspectedContext* context) {
+        InjectedScript* injectedScript = context->getInjectedScript(sessionId);
+        if (injectedScript)
+          injectedScript->setCustomObjectFormatterEnabled(enabled);
+      });
 }
 
 void V8InspectorSessionImpl::reportAllContexts(V8RuntimeAgentImpl* agent) {
-  const V8InspectorImpl::ContextByIdMap* contexts =
-      m_inspector->contextGroup(m_contextGroupId);
-  if (!contexts) return;
-  for (auto& idContext : *contexts)
-    agent->reportExecutionContextCreated(idContext.second.get());
+  m_inspector->forEachContext(m_contextGroupId,
+                              [&agent](InspectedContext* context) {
+                                agent->reportExecutionContextCreated(context);
+                              });
 }
 
 void V8InspectorSessionImpl::dispatchProtocolMessage(
     const StringView& message) {
-  m_dispatcher.dispatch(protocol::StringUtil::parseJSON(message));
+  bool binary_protocol = IsCBORMessage(message);
+  if (binary_protocol) {
+    use_binary_protocol_ = true;
+    m_state->setBoolean("use_binary_protocol", true);
+  }
+
+  int callId;
+  std::unique_ptr<protocol::Value> parsed_message;
+  if (binary_protocol) {
+    parsed_message = protocol::Value::parseBinary(
+        message.characters8(), static_cast<unsigned>(message.length()));
+  } else {
+    parsed_message = protocol::StringUtil::parseJSON(message);
+  }
+  String16 method;
+  if (m_dispatcher.parseCommand(parsed_message.get(), &callId, &method)) {
+    // Pass empty string instead of the actual message to save on a conversion.
+    // We're allowed to do so because fall-through is not implemented.
+    m_dispatcher.dispatch(callId, method, std::move(parsed_message),
+                          protocol::ProtocolMessage());
+  }
 }
 
 std::unique_ptr<StringBuffer> V8InspectorSessionImpl::stateJSON() {
-  String16 json = m_state->serialize();
-  return StringBufferImpl::adopt(json);
+  std::vector<uint8_t> json;
+  IPEStatus status = ConvertCBORToJSON(SpanFrom(state()), &json);
+  DCHECK(status.ok());
+  USE(status);
+  return v8::base::make_unique<BinaryStringBuffer>(std::move(json));
+}
+
+std::vector<uint8_t> V8InspectorSessionImpl::state() {
+  std::vector<uint8_t> out;
+  m_state->writeBinary(&out);
+  return out;
 }
 
 std::vector<std::unique_ptr<protocol::Schema::API::Domain>>

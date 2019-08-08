@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turbo --turbo-escape
+// Flags: --allow-natives-syntax --turbo-escape
 
 function g() {
   ({}).a += '';
@@ -13,7 +13,8 @@ function f() {
   g();
 }
 
+%PrepareFunctionForOptimization(f);
 f();
 f();
-% OptimizeFunctionOnNextCall(f);
+%OptimizeFunctionOnNextCall(f);
 f();

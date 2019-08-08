@@ -1,26 +1,33 @@
 'use strict';
-var common = require('../common.js');
-var assert = require('assert');
+const common = require('../common.js');
+const assert = require('assert');
 
-var bench = common.createBenchmark(main, {
-  thousands: [100],
+const bench = common.createBenchmark(main, {
+  n: [1e6],
+  direction: ['start', 'end']
 });
 
-function main(conf) {
-  var iterations = +conf.thousands * 1e3;
+function main({ n, direction }) {
 
-  var timersList = [];
-  for (var i = 0; i < iterations; i++) {
+  const timersList = [];
+  for (var i = 0; i < n; i++) {
     timersList.push(setTimeout(cb, i + 1));
   }
 
+  var j;
   bench.start();
-  for (var j = 0; j < iterations + 1; j++) {
-    clearTimeout(timersList[j]);
+  if (direction === 'start') {
+    for (j = 0; j < n; j++) {
+      clearTimeout(timersList[j]);
+    }
+  } else {
+    for (j = n - 1; j >= 0; j--) {
+      clearTimeout(timersList[j]);
+    }
   }
-  bench.end(iterations / 1e3);
+  bench.end(n);
 }
 
 function cb() {
-  assert(false, `Timer ${this._idleTimeout} should not call callback`);
+  assert.fail(`Timer ${this._idleTimeout} should not call callback`);
 }

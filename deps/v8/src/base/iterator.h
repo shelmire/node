@@ -10,6 +10,16 @@
 namespace v8 {
 namespace base {
 
+template <class Category, class Type, class Diff = std::ptrdiff_t,
+          class Pointer = Type*, class Reference = Type&>
+struct iterator {
+  using iterator_category = Category;
+  using value_type = Type;
+  using difference_type = Diff;
+  using pointer = Pointer;
+  using reference = Reference;
+};
+
 // The intention of the base::iterator_range class is to encapsulate two
 // iterators so that the range defined by the iterators can be used like
 // a regular STL container (actually only a subset of the full container
@@ -17,13 +27,13 @@ namespace base {
 template <typename ForwardIterator>
 class iterator_range {
  public:
-  typedef ForwardIterator iterator;
-  typedef ForwardIterator const_iterator;
-  typedef typename std::iterator_traits<iterator>::pointer pointer;
-  typedef typename std::iterator_traits<iterator>::reference reference;
-  typedef typename std::iterator_traits<iterator>::value_type value_type;
-  typedef
-      typename std::iterator_traits<iterator>::difference_type difference_type;
+  using iterator = ForwardIterator;
+  using const_iterator = ForwardIterator;
+  using pointer = typename std::iterator_traits<iterator>::pointer;
+  using reference = typename std::iterator_traits<iterator>::reference;
+  using value_type = typename std::iterator_traits<iterator>::value_type;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
 
   iterator_range() : begin_(), end_() {}
   template <typename ForwardIterator1, typename ForwardIterator2>

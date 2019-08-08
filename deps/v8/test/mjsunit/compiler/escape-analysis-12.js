@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turbo --turbo-escape
+// Flags: --allow-natives-syntax --turbo-escape
 
 var x = {};
 x = {};
@@ -11,7 +11,8 @@ function f() {
   x.b = 1;
   0 <= y.b;
 }
+%PrepareFunctionForOptimization(f);
 f();
 f();
-% OptimizeFunctionOnNextCall(f);
+%OptimizeFunctionOnNextCall(f);
 f();

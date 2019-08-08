@@ -18,6 +18,7 @@
     a[i] = 5.3;
   }
 
+  %PrepareFunctionForOptimization(foo);
   foo(a, 1);
   foo(a, 2);
   foo(a, 3);
@@ -29,6 +30,7 @@
   assertUnoptimized(foo);
   assertTrue(%HasDictionaryElements(a));
 
+  %PrepareFunctionForOptimization(foo);
   var b = [];
   foo(b, 1);
   foo(b, 2);
@@ -36,6 +38,7 @@
   b[10000] = 5;
   assertTrue(%HasDictionaryElements(b));
   foo(b, 3);
+  %PrepareFunctionForOptimization(foo);
   %OptimizeFunctionOnNextCall(foo);
   foo(b, 50000);
   assertOptimized(foo);
@@ -55,6 +58,7 @@
   }
 
   // The KeyedStoreIC will learn GROW_MODE.
+  %PrepareFunctionForOptimization(foo2);
   foo2(a, 10);
   foo2(a, 12);
   foo2(a, 31);
@@ -62,13 +66,13 @@
   foo2(a, 40);
 
   assertOptimized(foo2);
-  assertTrue(%HasFastSmiElements(a));
+  assertTrue(%HasSmiElements(a));
 
   // Grow a large array into large object space through the keyed store
   // without deoptimizing. Grow by 9s. If we set elements too sparsely, the
   // array will convert to dictionary mode.
   a = new Array(99999);
-  assertTrue(%HasFastSmiElements(a));
+  assertTrue(%HasSmiElements(a));
   for (var i = 0; i < 263000; i += 9) {
     foo2(a, i);
   }
@@ -76,7 +80,7 @@
   // Verify that we are over 1 page in size, and foo2 remains optimized.
   // This means we've smoothly transitioned to allocating in large object
   // space.
-  assertTrue(%HasFastSmiElements(a));
+  assertTrue(%HasSmiElements(a));
   assertTrue(a.length * 4 > (1024 * 1024));
   assertOptimized(foo2);
 

@@ -25,7 +25,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Flags: --allow-natives-syntax --inline-construct
+// Flags: --allow-natives-syntax
 
 // Test that inlined object allocation works for different layouts of
 // objects (e.g. in object properties, slack tracking in progress or
@@ -37,6 +37,7 @@ function test_helper(construct, a, b) {
 
 function test(construct) {
   %DeoptimizeFunction(test);
+  %PrepareFunctionForOptimization(test_helper);
   test_helper(construct, 0, 0);
   test_helper(construct, 0, 0);
   %OptimizeFunctionOnNextCall(test_helper);

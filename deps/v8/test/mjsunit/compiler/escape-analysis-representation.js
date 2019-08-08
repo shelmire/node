@@ -25,7 +25,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Flags: --allow-natives-syntax --use-escape-analysis
+// Flags: --allow-natives-syntax
 
 // This tests that captured objects materialized through the deoptimizer
 // have field descriptors with a representation matching the values that
@@ -50,6 +50,7 @@ function test(value_track, value_break) {
   var deopt = { deopt:false };
 
   // Warm-up field tracking to a certain representation.
+  %PrepareFunctionForOptimization(access);
   access(value_track, value_track(), deopt);
   access(value_track, value_track(), deopt);
   %OptimizeFunctionOnNextCall(access);

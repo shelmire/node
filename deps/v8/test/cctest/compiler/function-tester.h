@@ -5,7 +5,8 @@
 #ifndef V8_CCTEST_COMPILER_FUNCTION_TESTER_H_
 #define V8_CCTEST_COMPILER_FUNCTION_TESTER_H_
 
-#include "src/handles.h"
+#include "src/execution/execution.h"
+#include "src/handles/handles.h"
 #include "test/cctest/cctest.h"
 
 namespace v8 {
@@ -30,15 +31,25 @@ class FunctionTester : public InitializedHandleScope {
   explicit FunctionTester(Handle<Code> code);
 
   Isolate* isolate;
+  CanonicalHandleScope canonical;
   Handle<JSFunction> function;
 
-  MaybeHandle<Object> Call();
-  MaybeHandle<Object> Call(Handle<Object> a);
-  MaybeHandle<Object> Call(Handle<Object> a, Handle<Object> b);
-  MaybeHandle<Object> Call(Handle<Object> a, Handle<Object> b,
-                           Handle<Object> c);
-  MaybeHandle<Object> Call(Handle<Object> a, Handle<Object> b, Handle<Object> c,
-                           Handle<Object> d);
+  MaybeHandle<Object> Call() {
+    return Execution::Call(isolate, function, undefined(), 0, nullptr);
+  }
+
+  template <typename Arg1, typename... Args>
+  MaybeHandle<Object> Call(Arg1 arg1, Args... args) {
+    const int nof_args = sizeof...(Args) + 1;
+    Handle<Object> call_args[] = {arg1, args...};
+    return Execution::Call(isolate, function, undefined(), nof_args, call_args);
+  }
+
+  template <typename T, typename... Args>
+  Handle<T> CallChecked(Args... args) {
+    Handle<Object> result = Call(args...).ToHandleChecked();
+    return Handle<T>::cast(result);
+  }
 
   void CheckThrows(Handle<Object> a);
   void CheckThrows(Handle<Object> a, Handle<Object> b);

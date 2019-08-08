@@ -6,11 +6,11 @@
 #define V8_COMPILER_SCHEDULER_H_
 
 #include "src/base/flags.h"
+#include "src/common/globals.h"
 #include "src/compiler/node.h"
 #include "src/compiler/opcodes.h"
 #include "src/compiler/schedule.h"
 #include "src/compiler/zone-stats.h"
-#include "src/globals.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {
@@ -30,7 +30,7 @@ class V8_EXPORT_PRIVATE Scheduler {
  public:
   // Flags that control the mode of operation.
   enum Flag { kNoFlags = 0u, kSplitNodes = 1u << 1, kTempSchedule = 1u << 2 };
-  typedef base::Flags<Flag> Flags;
+  using Flags = base::Flags<Flag>;
 
   // The complete scheduling algorithm. Creates a new schedule and places all
   // nodes from the graph into it.
@@ -49,8 +49,13 @@ class V8_EXPORT_PRIVATE Scheduler {
   //                  \                         /
   //                   +----> kSchedulable ----+--------> kScheduled
   //
-  // 1) GetPlacement(): kUnknown -> kCoupled|kSchedulable|kFixed
+  // 1) InitializePlacement(): kUnknown -> kCoupled|kSchedulable|kFixed
   // 2) UpdatePlacement(): kCoupled|kSchedulable -> kFixed|kScheduled
+  //
+  // We maintain the invariant that all nodes that are not reachable
+  // from the end have kUnknown placement. After the PrepareUses phase runs,
+  // also the opposite is true - all nodes with kUnknown placement are not
+  // reachable from the end.
   enum Placement { kUnknown, kSchedulable, kFixed, kCoupled, kScheduled };
 
   // Per-node data tracked during scheduling.
@@ -81,7 +86,9 @@ class V8_EXPORT_PRIVATE Scheduler {
   inline SchedulerData* GetData(Node* node);
 
   Placement GetPlacement(Node* node);
+  Placement InitializePlacement(Node* node);
   void UpdatePlacement(Node* node, Placement placement);
+  bool IsLive(Node* node);
 
   inline bool IsCoupledControlEdge(Node* node, int index);
   void IncrementUnscheduledUseCount(Node* node, int index, Node* from);

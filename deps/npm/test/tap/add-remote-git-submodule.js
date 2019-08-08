@@ -9,12 +9,12 @@ var test = require('tap').test
 var npm = require('../../lib/npm.js')
 var common = require('../common-tap.js')
 
-var pkg = resolve(__dirname, 'add-remote-git-submodule')
-var repos = resolve(__dirname, 'add-remote-git-submodule-repos')
+var pkg = common.pkg
+var repos = pkg + '-repos'
 var subwt = resolve(repos, 'subwt')
 var topwt = resolve(repos, 'topwt')
-var suburl = 'git://localhost:1234/sub.git'
-var topurl = 'git://localhost:1234/top.git'
+var suburl = 'git://localhost:' + common.gitPort + '/sub.git'
+var topurl = 'git://localhost:' + common.gitPort + '/top.git'
 
 var daemon
 var daemonPID
@@ -77,6 +77,9 @@ function bootstrap (t) {
 }
 
 function setup (cb) {
+  rimraf.sync(pkg)
+  rimraf.sync(repos)
+
   mkdirp.sync(topwt)
   fs.writeFileSync(resolve(topwt, 'package.json'), pjChild)
   mkdirp.sync(subwt)
@@ -94,7 +97,7 @@ function setup (cb) {
           '--export-all',
           '--base-path=.',
           '--reuseaddr',
-          '--port=1234'
+          '--port=' + common.gitPort
         ],
         {
           cwd: repos,
@@ -120,12 +123,14 @@ function setup (cb) {
     var reposopt = { cwd: repos, env: env }
     common.makeGitRepo({
       path: subwt,
+      message: 'subwt repo: ' + subwt,
       added: ['foo.txt'],
       commands: [
         git.chainableExec(['clone', '--bare', subwt, 'sub.git'], reposopt),
         startDaemon,
         [common.makeGitRepo, {
           path: topwt,
+          message: 'topwt repo: ' + topwt,
           commands: [
             git.chainableExec(['submodule', 'add', suburl, 'subpath'], topopt),
             git.chainableExec(['commit', '-m', 'added submodule'], topopt),

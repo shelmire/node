@@ -1,7 +1,11 @@
+// Flags: --expose-internals
 'use strict';
 const common = require('../common');
+const { internalBinding } = require('internal/test/binding');
 const os = require('os');
-if (!(common.hasIntl && common.hasSmallICU))
+
+const { hasSmallICU } = internalBinding('config');
+if (!(common.hasIntl && hasSmallICU))
   common.skip('missing Intl');
 
 const assert = require('assert');
@@ -17,7 +21,7 @@ const expected =
 }
 
 {
-  const env = { NODE_ICU_DATA: '/' };
+  const env = Object.assign({}, process.env, { NODE_ICU_DATA: '/' });
   const child = spawnSync(process.execPath, ['-e', '0'], { env });
   assert(child.stderr.toString().includes(expected));
 }

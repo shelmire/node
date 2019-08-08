@@ -6,8 +6,8 @@
 
 let success = false;
 function f() {
-  success = (f.caller.arguments === null);
+  success = (f.caller === null);
 }
 Promise.resolve().then(f);
-%RunMicrotasks();
+%PerformMicrotaskCheckpoint();
 assertTrue(success);

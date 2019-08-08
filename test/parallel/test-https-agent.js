@@ -21,16 +21,17 @@
 
 'use strict';
 const common = require('../common');
+
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
+const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const https = require('https');
-const fs = require('fs');
 
 const options = {
-  key: fs.readFileSync(`${common.fixturesDir}/keys/agent1-key.pem`),
-  cert: fs.readFileSync(`${common.fixturesDir}/keys/agent1-cert.pem`)
+  key: fixtures.readKey('agent1-key.pem'),
+  cert: fixtures.readKey('agent1-cert.pem')
 };
 
 
@@ -67,5 +68,5 @@ server.listen(0, function() {
 
 
 process.on('exit', function() {
-  assert.strictEqual(N * M, responses);
+  assert.strictEqual(responses, N * M);
 });

@@ -25,8 +25,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Flags: --hydrogen-filter=Debug.setBreakPoint
-
 Debug = debug.Debug
 Debug.setListener(function(){});
 
@@ -36,6 +34,7 @@ function g() {
   b=2;
 }
 
+%PrepareFunctionForOptimization(Debug.setBreakPoint);
 bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);
 %OptimizeFunctionOnNextCall(Debug.setBreakPoint);
@@ -43,6 +42,7 @@ bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);
 bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);
+%PrepareFunctionForOptimization(Debug.setBreakPoint);
 %OptimizeFunctionOnNextCall(Debug.setBreakPoint);
 bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);

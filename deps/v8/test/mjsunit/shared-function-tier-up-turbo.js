@@ -3,10 +3,13 @@
 // found in the LICENSE file.
 //
 // Flags: --mark-shared-functions-for-tier-up --allow-natives-syntax
-// Flags: --ignition --turbo --opt --no-always-opt
-// Flags: --turbo-filter=*
+// Flags: --opt --no-always-opt --turbo-filter=*
 
 // If we are always or never optimizing it is useless.
+if (isNeverOptimizeLiteMode()) {
+  print("Warning: skipping test that requires optimization in Lite mode.");
+  testRunner.quit(0);
+}
 assertFalse(isAlwaysOptimize());
 assertFalse(isNeverOptimize());
 
@@ -16,7 +19,8 @@ assertFalse(isNeverOptimize());
   for (var i = 0; i < 3; ++i) {
     var f = function(x) {
       return 2 * x;
-    }
+    };
+    %PrepareFunctionForOptimization(f);
     sum += f(i);
 
     if (i == 1) {

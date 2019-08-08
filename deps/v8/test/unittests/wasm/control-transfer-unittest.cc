@@ -5,7 +5,7 @@
 #include "test/unittests/test-utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-#include "src/v8.h"
+#include "src/init/v8.h"
 #include "src/wasm/wasm-interpreter.h"
 
 #include "test/common/wasm/wasm-macro-gen.h"
@@ -19,13 +19,6 @@ using testing::StringMatchResultListener;
 namespace v8 {
 namespace internal {
 namespace wasm {
-
-#define B1(a) kExprBlock, a, kExprEnd
-#define B2(a, b) kExprBlock, a, b, kExprEnd
-#define B3(a, b, c) kExprBlock, a, b, c, kExprEnd
-
-#define TRANSFER_VOID 0
-#define TRANSFER_ONE 1
 
 struct ExpectedControlTransfer {
   pc_t pc;

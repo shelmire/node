@@ -26,11 +26,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# for py2/py3 compatibility
+from __future__ import print_function
+
 import argparse
 from collections import OrderedDict
 import sys
 
 from common_includes import *
+from git_recipes import GetCommitMessageFooterMap
 
 def IsSvnNumber(rev):
   return rev.isdigit() and len(rev) < 8
@@ -134,8 +138,13 @@ class CreateCommitMessage(Step):
       msg = self.GitLog(n=1, git_hash=commit_hash)
       for bug in re.findall(r"^[ \t]*BUG[ \t]*=[ \t]*(.*?)[ \t]*$", msg, re.M):
         bugs.extend(s.strip() for s in bug.split(","))
-    bug_aggregate = ",".join(sorted(filter(lambda s: s and s != "none", bugs)))
+      gerrit_bug = GetCommitMessageFooterMap(msg).get('Bug', '')
+      bugs.extend(s.strip() for s in gerrit_bug.split(","))
+    bug_aggregate = ",".join(
+        sorted(filter(lambda s: s and s != "none", set(bugs))))
     if bug_aggregate:
+      # TODO(machenbach): Use proper gerrit footer for bug after switch to
+      # gerrit. Keep BUG= for now for backwards-compatibility.
       msg_pieces.append("BUG=%s\nLOG=N\n" % bug_aggregate)
 
     msg_pieces.append("NOTRY=true\nNOPRESUBMIT=true\nNOTREECHECKS=true\n")
@@ -180,10 +189,10 @@ class CleanUp(Step):
 
   def RunStep(self):
     self.CommonCleanup()
-    print "*** SUMMARY ***"
-    print "branch: %s" % self["merge_to_branch"]
+    print("*** SUMMARY ***")
+    print("branch: %s" % self["merge_to_branch"])
     if self["revision_list"]:
-      print "patches: %s" % self["revision_list"]
+      print("patches: %s" % self["revision_list"])
 
 
 class MergeToBranch(ScriptsBase):
@@ -209,10 +218,10 @@ class MergeToBranch(ScriptsBase):
   def _ProcessOptions(self, options):
     if len(options.revisions) < 1:
       if not options.patch:
-        print "Either a patch file or revision numbers must be specified"
+        print("Either a patch file or revision numbers must be specified")
         return False
       if not options.message:
-        print "You must specify a merge comment if no patches are specified"
+        print("You must specify a merge comment if no patches are specified")
         return False
     options.bypass_upload_hooks = True
     # CC ulan to make sure that fixes are merged to Google3.
@@ -227,19 +236,20 @@ class MergeToBranch(ScriptsBase):
     for revision in options.revisions:
       if (IsSvnNumber(revision) or
           (revision[0:1] == "r" and IsSvnNumber(revision[1:]))):
-        print "Please provide full git hashes of the patches to merge."
-        print "Got: %s" % revision
+        print("Please provide full git hashes of the patches to merge.")
+        print("Got: %s" % revision)
         return False
     return True
 
   def _Config(self):
     return {
       "BRANCHNAME": "prepare-merge",
-      "PERSISTFILE_BASENAME": "/tmp/v8-merge-to-branch-tempfile",
+      "PERSISTFILE_BASENAME": RELEASE_WORKDIR + "v8-merge-to-branch-tempfile",
       "ALREADY_MERGING_SENTINEL_FILE":
-          "/tmp/v8-merge-to-branch-tempfile-already-merging",
-      "TEMPORARY_PATCH_FILE": "/tmp/v8-prepare-merge-tempfile-temporary-patch",
-      "COMMITMSG_FILE": "/tmp/v8-prepare-merge-tempfile-commitmsg",
+          RELEASE_WORKDIR + "v8-merge-to-branch-tempfile-already-merging",
+      "TEMPORARY_PATCH_FILE":
+          RELEASE_WORKDIR + "v8-prepare-merge-tempfile-temporary-patch",
+      "COMMITMSG_FILE": RELEASE_WORKDIR + "v8-prepare-merge-tempfile-commitmsg",
     }
 
   def _Steps(self):

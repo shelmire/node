@@ -27,7 +27,7 @@ class DefaultAllocationPolicy {
 template <typename Key, typename Value, class MatchFun, class AllocationPolicy>
 class TemplateHashMapImpl {
  public:
-  typedef TemplateHashMapEntry<Key, Value> Entry;
+  using Entry = TemplateHashMapEntry<Key, Value>;
 
   // The default capacity.  This is used by the call sites which want
   // to pass in a non-default AllocationPolicy but want to use the
@@ -297,7 +297,7 @@ template <typename Key, typename Value, typename MatchFun,
 typename TemplateHashMapImpl<Key, Value, MatchFun, AllocationPolicy>::Entry*
 TemplateHashMapImpl<Key, Value, MatchFun, AllocationPolicy>::Probe(
     const Key& key, uint32_t hash) const {
-  DCHECK(base::bits::IsPowerOfTwo32(capacity_));
+  DCHECK(base::bits::IsPowerOfTwo(capacity_));
   size_t i = hash & (capacity_ - 1);
   DCHECK(i < capacity_);
 
@@ -333,7 +333,7 @@ template <typename Key, typename Value, typename MatchFun,
           class AllocationPolicy>
 void TemplateHashMapImpl<Key, Value, MatchFun, AllocationPolicy>::Initialize(
     uint32_t capacity, AllocationPolicy allocator) {
-  DCHECK(base::bits::IsPowerOfTwo32(capacity));
+  DCHECK(base::bits::IsPowerOfTwo(capacity));
   map_ = reinterpret_cast<Entry*>(allocator.New(capacity * sizeof(Entry)));
   if (map_ == nullptr) {
     FATAL("Out of memory: HashMap::Initialize");
@@ -389,13 +389,12 @@ class CustomMatcherTemplateHashMapImpl
           void*, void*,
           HashEqualityThenKeyMatcher<void*, bool (*)(void*, void*)>,
           AllocationPolicy> {
-  typedef TemplateHashMapImpl<
+  using Base = TemplateHashMapImpl<
       void*, void*, HashEqualityThenKeyMatcher<void*, bool (*)(void*, void*)>,
-      AllocationPolicy>
-      Base;
+      AllocationPolicy>;
 
  public:
-  typedef bool (*MatchFun)(void*, void*);
+  using MatchFun = bool (*)(void*, void*);
 
   CustomMatcherTemplateHashMapImpl(
       MatchFun match, uint32_t capacity = Base::kDefaultHashMapCapacity,
@@ -412,8 +411,8 @@ class CustomMatcherTemplateHashMapImpl
   DISALLOW_COPY_AND_ASSIGN(CustomMatcherTemplateHashMapImpl);
 };
 
-typedef CustomMatcherTemplateHashMapImpl<DefaultAllocationPolicy>
-    CustomMatcherHashMap;
+using CustomMatcherHashMap =
+    CustomMatcherTemplateHashMapImpl<DefaultAllocationPolicy>;
 
 // Match function which compares keys directly by equality.
 template <typename Key>
@@ -429,9 +428,8 @@ template <typename AllocationPolicy>
 class PointerTemplateHashMapImpl
     : public TemplateHashMapImpl<void*, void*, KeyEqualityMatcher<void*>,
                                  AllocationPolicy> {
-  typedef TemplateHashMapImpl<void*, void*, KeyEqualityMatcher<void*>,
-                              AllocationPolicy>
-      Base;
+  using Base = TemplateHashMapImpl<void*, void*, KeyEqualityMatcher<void*>,
+                                   AllocationPolicy>;
 
  public:
   PointerTemplateHashMapImpl(uint32_t capacity = Base::kDefaultHashMapCapacity,
@@ -439,7 +437,7 @@ class PointerTemplateHashMapImpl
       : Base(capacity, KeyEqualityMatcher<void*>(), allocator) {}
 };
 
-typedef PointerTemplateHashMapImpl<DefaultAllocationPolicy> HashMap;
+using HashMap = PointerTemplateHashMapImpl<DefaultAllocationPolicy>;
 
 // A hash map for pointer keys and values with an STL-like interface.
 template <class Key, class Value, class MatchFun, class AllocationPolicy>
@@ -447,10 +445,9 @@ class TemplateHashMap
     : private TemplateHashMapImpl<void*, void*,
                                   HashEqualityThenKeyMatcher<void*, MatchFun>,
                                   AllocationPolicy> {
-  typedef TemplateHashMapImpl<void*, void*,
-                              HashEqualityThenKeyMatcher<void*, MatchFun>,
-                              AllocationPolicy>
-      Base;
+  using Base = TemplateHashMapImpl<void*, void*,
+                                   HashEqualityThenKeyMatcher<void*, MatchFun>,
+                                   AllocationPolicy>;
 
  public:
   STATIC_ASSERT(sizeof(Key*) == sizeof(void*));    // NOLINT

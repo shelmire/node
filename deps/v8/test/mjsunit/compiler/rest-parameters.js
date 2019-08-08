@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turbo
+// Flags: --allow-natives-syntax
 
 (function Rest0Params() {
 
@@ -13,6 +13,8 @@ function f(x, y) {
 function test(...rest) {
   return [rest, f.apply(null, rest)];
 }
+
+%PrepareFunctionForOptimization(test);
 
 assertEquals(test(), [[], NaN]);
 assertEquals(test(1), [[1], NaN])
@@ -36,6 +38,8 @@ function f(x, y) {
 function test(a, ...rest) {
   return [rest, a, f.apply(null, rest)];
 }
+
+%PrepareFunctionForOptimization(test);
 
 assertEquals(test(), [[], undefined, NaN]);
 assertEquals(test(1), [[], 1, NaN]);

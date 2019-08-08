@@ -5,7 +5,7 @@
 #ifndef V8_INTERPRETER_BYTECODE_FLAGS_H_
 #define V8_INTERPRETER_BYTECODE_FLAGS_H_
 
-#include "src/utils.h"
+#include "src/utils/utils.h"
 
 namespace v8 {
 namespace internal {
@@ -18,8 +18,8 @@ namespace interpreter {
 
 class CreateArrayLiteralFlags {
  public:
-  class FlagsBits : public BitField8<int, 0, 4> {};
-  class FastShallowCloneBit : public BitField8<bool, FlagsBits::kNext, 1> {};
+  class FlagsBits : public BitField8<int, 0, 5> {};
+  class FastCloneSupportedBit : public BitField8<bool, FlagsBits::kNext, 1> {};
 
   static uint8_t Encode(bool use_fast_shallow_clone, int runtime_flags);
 
@@ -29,7 +29,7 @@ class CreateArrayLiteralFlags {
 
 class CreateObjectLiteralFlags {
  public:
-  class FlagsBits : public BitField8<int, 0, 4> {};
+  class FlagsBits : public BitField8<int, 0, 5> {};
   class FastCloneSupportedBit : public BitField8<bool, FlagsBits::kNext, 1> {};
 
   static uint8_t Encode(int runtime_flags, bool fast_clone_supported);
@@ -43,7 +43,8 @@ class CreateClosureFlags {
   class PretenuredBit : public BitField8<bool, 0, 1> {};
   class FastNewClosureBit : public BitField8<bool, PretenuredBit::kNext, 1> {};
 
-  static uint8_t Encode(bool pretenure, bool is_function_scope);
+  static uint8_t Encode(bool pretenure, bool is_function_scope,
+                        bool might_always_opt);
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(CreateClosureFlags);
@@ -54,6 +55,7 @@ class CreateClosureFlags {
   V(String, string)            \
   V(Symbol, symbol)            \
   V(Boolean, boolean)          \
+  V(BigInt, bigint)            \
   V(Undefined, undefined)      \
   V(Function, function)        \
   V(Object, object)            \
@@ -76,17 +78,18 @@ class TestTypeOfFlags {
   DISALLOW_IMPLICIT_CONSTRUCTORS(TestTypeOfFlags);
 };
 
-class SuspendGeneratorBytecodeFlags {
+class StoreLookupSlotFlags {
  public:
-  class FlagsBits
-      : public BitField8<SuspendFlags, 0,
-                         static_cast<int>(SuspendFlags::kBitWidth)> {};
+  class LanguageModeBit : public BitField8<LanguageMode, 0, 1> {};
+  class LookupHoistingModeBit
+      : public BitField8<bool, LanguageModeBit::kNext, 1> {};
+  STATIC_ASSERT(LanguageModeSize <= LanguageModeBit::kNumValues);
 
-  static uint8_t Encode(SuspendFlags suspend_type);
-  static SuspendFlags Decode(uint8_t flags);
+  static uint8_t Encode(LanguageMode language_mode,
+                        LookupHoistingMode lookup_hoisting_mode);
 
  private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(SuspendGeneratorBytecodeFlags);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StoreLookupSlotFlags);
 };
 
 }  // namespace interpreter

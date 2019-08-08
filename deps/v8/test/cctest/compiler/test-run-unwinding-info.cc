@@ -6,10 +6,9 @@
 #if defined(V8_TARGET_ARCH_X64) || defined(V8_TARGET_ARCH_ARM) || \
     defined(V8_TARGET_ARCH_ARM64)
 
-#include "src/flags.h"
-#include "src/objects-inl.h"
-#include "src/objects.h"
-#include "src/unicode-cache.h"
+#include "src/flags/flags.h"
+#include "src/objects/objects-inl.h"
+#include "src/objects/objects.h"
 #include "test/cctest/compiler/function-tester.h"
 
 namespace v8 {
@@ -17,7 +16,7 @@ namespace internal {
 namespace compiler {
 
 TEST(RunUnwindingInfo) {
-  FLAG_turbo = true;
+  FLAG_always_opt = true;
   FLAG_perf_prof_unwinding_info = true;
 
   FunctionTester tester(
@@ -28,7 +27,7 @@ TEST(RunUnwindingInfo) {
 
   tester.Call(tester.Val(-1));
 
-  CHECK(tester.function->code()->has_unwinding_info());
+  CHECK(tester.function->code().has_unwinding_info());
 }
 
 // TODO(ssanfilippo) Build low-level graph and check that state is correctly

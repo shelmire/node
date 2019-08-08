@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --opt --turbo --no-always-opt
+// Flags: --allow-natives-syntax --opt --no-always-opt
 
 
 function foo(i, deopt = false, deoptobj = null) {
@@ -16,21 +16,14 @@ function foo(i, deopt = false, deoptobj = null) {
     }
 }
 
-assertEquals(0, %GetOptimizationCount(foo));
-assertEquals(0, %GetDeoptCount(foo));
-
+%PrepareFunctionForOptimization(foo);
 foo(10);
 foo(10);
 %OptimizeFunctionOnNextCall(foo);
 foo(10);
 
 assertOptimized(foo);
-assertEquals(1, %GetOptimizationCount(foo));
-assertEquals(0, %GetDeoptCount(foo));
 
 foo(10, true, { bar: function(){} });
 
 assertUnoptimized(foo);
-assertEquals(1, %GetOptimizationCount(foo));
-// Soft deopts don't count to the deopt count.
-assertEquals(0, %GetDeoptCount(foo));

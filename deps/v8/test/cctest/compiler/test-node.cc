@@ -12,6 +12,7 @@
 namespace v8 {
 namespace internal {
 namespace compiler {
+namespace node {
 
 #define NONE reinterpret_cast<Node*>(1)
 
@@ -35,8 +36,7 @@ static Operator dummy_operator3(IrOpcode::kParameter, Operator::kNoWrite,
 
 namespace {
 
-typedef std::multiset<Node*, std::less<Node*>> NodeMSet;
-
+using NodeMSet = std::multiset<Node*, std::less<Node*>>;
 
 void CheckUseChain(Node* node, Node** uses, int use_count) {
   // Check ownership.
@@ -465,13 +465,13 @@ TEST(NullInputsSimple) {
 
   n2->ReplaceInput(0, nullptr);
 
-  CHECK_INPUTS(n2, NULL, n1);
+  CHECK_INPUTS(n2, nullptr, n1);
 
   CHECK_USES(n0, n1);
 
   n2->ReplaceInput(1, nullptr);
 
-  CHECK_INPUTS(n2, NULL, NULL);
+  CHECK_INPUTS(n2, nullptr, nullptr);
 
   CHECK_USES(n1, NONE);
 }
@@ -494,10 +494,10 @@ TEST(NullInputsAppended) {
   CHECK_USES(n1, n3);
   CHECK_USES(n2, n3);
 
-  n3->ReplaceInput(1, NULL);
+  n3->ReplaceInput(1, nullptr);
   CHECK_USES(n1, NONE);
 
-  CHECK_INPUTS(n3, n0, NULL, n2);
+  CHECK_INPUTS(n3, n0, nullptr, n2);
 }
 
 
@@ -807,13 +807,13 @@ TEST(NullAllInputs) {
 
     CHECK_USES(n0, n1, n2);
     n1->NullAllInputs();
-    CHECK_INPUTS(n1, NULL);
+    CHECK_INPUTS(n1, nullptr);
     CHECK_INPUTS(n2, n0, n1);
     CHECK_USES(n0, n2);
 
     n2->NullAllInputs();
-    CHECK_INPUTS(n1, NULL);
-    CHECK_INPUTS(n2, NULL, NULL);
+    CHECK_INPUTS(n1, nullptr);
+    CHECK_INPUTS(n2, nullptr, nullptr);
     CHECK_USES(n0, NONE);
   }
 
@@ -829,7 +829,7 @@ TEST(NullAllInputs) {
     n1->NullAllInputs();
 
     CHECK_INPUTS(n0, NONE);
-    CHECK_INPUTS(n1, NULL);
+    CHECK_INPUTS(n1, nullptr);
     CHECK_USES(n0, NONE);
     CHECK_USES(n1, NONE);
   }
@@ -875,6 +875,11 @@ TEST(AppendAndTrim) {
   }
 }
 
+#undef NONE
+#undef CHECK_USES
+#undef CHECK_INPUTS
+
+}  // namespace node
 }  // namespace compiler
 }  // namespace internal
 }  // namespace v8

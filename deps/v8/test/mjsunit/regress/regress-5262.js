@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --ignition --ignition-osr --allow-natives-syntax
+// Flags: --ignition-osr --allow-natives-syntax
 
 function g() { return 23 }
 function h() { return 42 }
@@ -20,6 +20,7 @@ function f(osr_and_recurse) {
   }
   return 65;
 }
+%PrepareFunctionForOptimization(f);
 assertEquals(65, f(false));
 assertEquals(65, f(false));
 assertEquals(42, f(true));

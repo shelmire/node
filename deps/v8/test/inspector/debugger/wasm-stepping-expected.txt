@@ -14,12 +14,12 @@ end
 
 func $wasm_B (param i32)
   loop
-    get_local 0
+    local.get 0
     if
-      get_local 0
+      local.get 0
       i32.const 1
       i32.sub
-      set_local 0
+      local.set 0
       call 0
       br 1
     end
@@ -32,12 +32,12 @@ Setting breakpoint on line 7 (on the setlocal before the call), url wasm://wasm/
     lineNumber : 7
     scriptId : <scriptId>
 }
-Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >set_local 0
+Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >local.set 0
 at wasm_B (7:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 4 (number)
+   locals: {"arg#0":4} (Object)
    stack: {"0":3} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -48,7 +48,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 3 (number)
+   locals: {"arg#0":3} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -64,7 +64,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 3 (number)
+   locals: {"arg#0":3} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -80,7 +80,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 3 (number)
+   locals: {"arg#0":3} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -91,18 +91,18 @@ at wasm_B (9:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 3 (number)
+   locals: {"arg#0":3} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
    -- skipped
 Debugger.stepOut called
-Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >set_local 0
+Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >local.set 0
 at wasm_B (7:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 3 (number)
+   locals: {"arg#0":3} (Object)
    stack: {"0":2} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -113,7 +113,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 2 (number)
+   locals: {"arg#0":2} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -124,18 +124,18 @@ at wasm_B (9:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 2 (number)
+   locals: {"arg#0":2} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
    -- skipped
 Debugger.resume called
-Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >set_local 0
+Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >local.set 0
 at wasm_B (7:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 2 (number)
+   locals: {"arg#0":2} (Object)
    stack: {"0":1} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -146,7 +146,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -162,7 +162,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -173,7 +173,7 @@ at wasm_B (9:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -184,18 +184,18 @@ at wasm_B (1:2):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
    -- skipped
 Debugger.stepInto called
-Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:2:4:     >get_local 0
+Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:2:4:     >local.get 0
 at wasm_B (2:4):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -206,18 +206,18 @@ at wasm_B (3:4):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {"0":1} (Object)
 at (anonymous) (0:17):
  - scope (global):
    -- skipped
 Debugger.stepInto called
-Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:4:6:       >get_local 0
+Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:4:6:       >local.get 0
 at wasm_B (4:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -228,7 +228,7 @@ at wasm_B (5:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {"0":1} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -239,18 +239,18 @@ at wasm_B (6:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {"0":1,"1":1} (Object)
 at (anonymous) (0:17):
  - scope (global):
    -- skipped
 Debugger.stepInto called
-Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >set_local 0
+Paused at wasm://wasm/wasm-0c10a5fe/wasm-0c10a5fe-1:7:6:       >local.set 0
 at wasm_B (7:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 1 (number)
+   locals: {"arg#0":1} (Object)
    stack: {"0":0} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -261,7 +261,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 0 (number)
+   locals: {"arg#0":0} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -277,7 +277,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 0 (number)
+   locals: {"arg#0":0} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -293,7 +293,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 0 (number)
+   locals: {"arg#0":0} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -309,7 +309,7 @@ at wasm_B (8:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 0 (number)
+   locals: {"arg#0":0} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):
@@ -320,7 +320,7 @@ at wasm_B (9:6):
  - scope (global):
    -- skipped
  - scope (local):
-   param#0: 0 (number)
+   locals: {"arg#0":0} (Object)
    stack: {} (Object)
 at (anonymous) (0:17):
  - scope (global):

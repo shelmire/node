@@ -12,9 +12,9 @@ var elements_kind = {
 }
 
 function getKind(obj) {
-  if (%HasFastSmiElements(obj)) return elements_kind.fast_smi_only;
-  if (%HasFastObjectElements(obj)) return elements_kind.fast;
-  if (%HasFastDoubleElements(obj)) return elements_kind.fast_double;
+  if (%HasSmiElements(obj)) return elements_kind.fast_smi_only;
+  if (%HasObjectElements(obj)) return elements_kind.fast;
+  if (%HasDoubleElements(obj)) return elements_kind.fast_double;
   if (%HasDictionaryElements(obj)) return elements_kind.dictionary;
 }
 
@@ -27,6 +27,10 @@ function assertKind(expected, obj, name_opt) {
   function make2() { return new Array(); }
   function make3() { return new Array(); }
   function foo(a, i) { a[0] = i; }
+  %EnsureFeedbackVectorForFunction(make1);
+  %EnsureFeedbackVectorForFunction(make2);
+  %EnsureFeedbackVectorForFunction(make3);
+  %EnsureFeedbackVectorForFunction(foo);
 
   function run_test(maker_function) {
     var one = maker_function();
@@ -37,6 +41,7 @@ function assertKind(expected, obj, name_opt) {
     var two = maker_function();
     assertKind(elements_kind.fast_double, two);
   }
+  %EnsureFeedbackVectorForFunction(run_test);
 
   // Initialize the KeyedStoreIC in foo; the actual operation will be done
   // in the runtime.

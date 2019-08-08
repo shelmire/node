@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // MODULE
-// Flags: --allow-natives-syntax --turbo
+// Flags: --allow-natives-syntax
 
 export let x = 0;
 
@@ -11,6 +11,7 @@ function foo() { return x++ };
 
 function gaga(f) { return f() };
 
+%PrepareFunctionForOptimization(gaga);
 assertEquals(0, gaga(foo));
 assertEquals(1, gaga(foo));
 %OptimizeFunctionOnNextCall(gaga);

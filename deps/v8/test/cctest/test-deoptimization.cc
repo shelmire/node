@@ -27,93 +27,73 @@
 
 #include <stdlib.h>
 
-#include "src/v8.h"
+#include "src/init/v8.h"
 
-#include "src/api.h"
+#include "src/api/api-inl.h"
 #include "src/base/platform/platform.h"
-#include "src/compilation-cache.h"
+#include "src/codegen/compilation-cache.h"
 #include "src/debug/debug.h"
-#include "src/deoptimizer.h"
-#include "src/isolate.h"
-#include "src/objects-inl.h"
+#include "src/deoptimizer/deoptimizer.h"
+#include "src/execution/isolate.h"
+#include "src/objects/objects-inl.h"
 #include "test/cctest/cctest.h"
 
 using ::v8::base::OS;
 using ::v8::internal::Deoptimizer;
 using ::v8::internal::EmbeddedVector;
 using ::v8::internal::Handle;
-using ::v8::internal::Isolate;
 using ::v8::internal::JSFunction;
-using ::v8::internal::Object;
 
 // Size of temp buffer for formatting small strings.
 #define SMALL_STRING_BUFFER_SIZE 80
 
 // Utility class to set the following runtime flags when constructed and return
 // to their default state when destroyed:
-//   --allow-natives-syntax --always-opt --noturbo-inlining --nouse-inlining
+//   --allow-natives-syntax --always-opt --noturbo-inlining
 class AlwaysOptimizeAllowNativesSyntaxNoInlining {
  public:
   AlwaysOptimizeAllowNativesSyntaxNoInlining()
       : always_opt_(i::FLAG_always_opt),
         allow_natives_syntax_(i::FLAG_allow_natives_syntax),
-        turbo_inlining_(i::FLAG_turbo_inlining),
-        use_inlining_(i::FLAG_use_inlining) {
+        turbo_inlining_(i::FLAG_turbo_inlining) {
     i::FLAG_always_opt = true;
     i::FLAG_allow_natives_syntax = true;
     i::FLAG_turbo_inlining = false;
-    i::FLAG_use_inlining = false;
   }
 
   ~AlwaysOptimizeAllowNativesSyntaxNoInlining() {
     i::FLAG_always_opt = always_opt_;
     i::FLAG_allow_natives_syntax = allow_natives_syntax_;
     i::FLAG_turbo_inlining = turbo_inlining_;
-    i::FLAG_use_inlining = use_inlining_;
   }
 
  private:
   bool always_opt_;
   bool allow_natives_syntax_;
   bool turbo_inlining_;
-  bool use_inlining_;
 };
-
 
 // Utility class to set the following runtime flags when constructed and return
 // to their default state when destroyed:
-//   --allow-natives-syntax --noturbo-inlining --nouse-inlining
+//   --allow-natives-syntax --noturbo-inlining
 class AllowNativesSyntaxNoInlining {
  public:
   AllowNativesSyntaxNoInlining()
       : allow_natives_syntax_(i::FLAG_allow_natives_syntax),
-        turbo_inlining_(i::FLAG_turbo_inlining),
-        use_inlining_(i::FLAG_use_inlining) {
+        turbo_inlining_(i::FLAG_turbo_inlining) {
     i::FLAG_allow_natives_syntax = true;
     i::FLAG_turbo_inlining = false;
-    i::FLAG_use_inlining = false;
   }
 
   ~AllowNativesSyntaxNoInlining() {
     i::FLAG_allow_natives_syntax = allow_natives_syntax_;
     i::FLAG_turbo_inlining = turbo_inlining_;
-    i::FLAG_use_inlining = use_inlining_;
   }
 
  private:
   bool allow_natives_syntax_;
   bool turbo_inlining_;
-  bool use_inlining_;
 };
-
-
-// Abort any ongoing incremental marking to make sure that all weak global
-// handle callbacks are processed.
-static void NonIncrementalGC(i::Isolate* isolate) {
-  isolate->heap()->CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask,
-                                     i::GarbageCollectionReason::kTesting);
-}
-
 
 static Handle<JSFunction> GetJSFunction(v8::Local<v8::Context> context,
                                         const char* property_name) {
@@ -124,6 +104,7 @@ static Handle<JSFunction> GetJSFunction(v8::Local<v8::Context> context,
 
 
 TEST(DeoptimizeSimple) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -137,7 +118,7 @@ TEST(DeoptimizeSimple) {
         "function f() { g(); };"
         "f();");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -157,7 +138,7 @@ TEST(DeoptimizeSimple) {
         "function f(x) { if (x) { g(); } else { return } };"
         "f(true);");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -170,6 +151,7 @@ TEST(DeoptimizeSimple) {
 
 
 TEST(DeoptimizeSimpleWithArguments) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -183,7 +165,7 @@ TEST(DeoptimizeSimpleWithArguments) {
         "function f(x, y, z) { g(1,x); y+z; };"
         "f(1, \"2\", false);");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -204,7 +186,7 @@ TEST(DeoptimizeSimpleWithArguments) {
         "function f(x, y, z) { if (x) { g(x, y); } else { return y + z; } };"
         "f(true, 1, \"2\");");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -217,6 +199,7 @@ TEST(DeoptimizeSimpleWithArguments) {
 
 
 TEST(DeoptimizeSimpleNested) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -231,7 +214,7 @@ TEST(DeoptimizeSimpleNested) {
         "function g(z) { count++; %DeoptimizeFunction(f); return z;}"
         "function f(x,y,z) { return h(x, y, g(z)); };"
         "result = f(1, 2, 3);");
-    NonIncrementalGC(CcTest::i_isolate());
+    CcTest::CollectAllGarbage();
 
     CHECK_EQ(1, env->Global()
                     ->Get(env.local(), v8_str("count"))
@@ -250,6 +233,7 @@ TEST(DeoptimizeSimpleNested) {
 
 
 TEST(DeoptimizeRecursive) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -264,7 +248,7 @@ TEST(DeoptimizeRecursive) {
         "function f(x) { calls++; if (x > 0) { f(x - 1); } else { g(); } };"
         "f(10);");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -287,6 +271,7 @@ TEST(DeoptimizeRecursive) {
 
 
 TEST(DeoptimizeMultiple) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -306,7 +291,7 @@ TEST(DeoptimizeMultiple) {
         "function f1(x) { return f2(x + 1, x + 1) + x; };"
         "result = f1(1);");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -323,6 +308,7 @@ TEST(DeoptimizeMultiple) {
 
 
 TEST(DeoptimizeConstructor) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -335,7 +321,7 @@ TEST(DeoptimizeConstructor) {
         "function f() {  g(); };"
         "result = new f() instanceof f;");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -359,7 +345,7 @@ TEST(DeoptimizeConstructor) {
         "result = new f(1, 2);"
         "result = result.x + result.y;");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -376,6 +362,7 @@ TEST(DeoptimizeConstructor) {
 
 
 TEST(DeoptimizeConstructorMultiple) {
+  ManualGCScope manual_gc_scope;
   LocalContext env;
   v8::HandleScope scope(env->GetIsolate());
 
@@ -396,7 +383,7 @@ TEST(DeoptimizeConstructorMultiple) {
         "function f1(x) { this.result = new f2(x + 1, x + 1).result + x; };"
         "result = new f1(1).result;");
   }
-  NonIncrementalGC(CcTest::i_isolate());
+  CcTest::CollectAllGarbage();
 
   CHECK_EQ(1, env->Global()
                   ->Get(env.local(), v8_str("count"))
@@ -413,6 +400,7 @@ TEST(DeoptimizeConstructorMultiple) {
 
 
 UNINITIALIZED_TEST(DeoptimizeBinaryOperationADDString) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   AllowNativesSyntaxNoInlining options;
   v8::Isolate::CreateParams create_params;
@@ -456,7 +444,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationADDString) {
           "deopt = true;"
           "var result = f('a+', new X());");
     }
-    NonIncrementalGC(i_isolate);
+    CcTest::CollectAllGarbage(i_isolate);
 
     CHECK(!GetJSFunction(env.local(), "f")->IsOptimized());
     CHECK_EQ(1, env->Global()
@@ -467,7 +455,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationADDString) {
     v8::Local<v8::Value> result =
         env->Global()->Get(env.local(), v8_str("result")).ToLocalChecked();
     CHECK(result->IsString());
-    v8::String::Utf8Value utf8(result);
+    v8::String::Utf8Value utf8(isolate, result);
     CHECK_EQ(0, strcmp("a+an X", *utf8));
     CHECK_EQ(0, Deoptimizer::GetDeoptimizedCodeCount(i_isolate));
   }
@@ -494,7 +482,7 @@ static void TestDeoptimizeBinaryOpHelper(LocalContext* env,
   SNPrintF(f_source_buffer,
            "function f(x, y) { return x %s y; };",
            binary_op);
-  char* f_source = f_source_buffer.start();
+  char* f_source = f_source_buffer.begin();
 
   AllowNativesSyntaxNoInlining options;
   // Compile function f and collect to type feedback to insert binary op stub
@@ -516,12 +504,13 @@ static void TestDeoptimizeBinaryOpHelper(LocalContext* env,
   // Call f and force deoptimization while processing the binary operation.
   CompileRun("deopt = true;"
              "var result = f(7, new X());");
-  NonIncrementalGC(i_isolate);
+  CcTest::CollectAllGarbage(i_isolate);
   CHECK(!GetJSFunction((*env).local(), "f")->IsOptimized());
 }
 
 
 UNINITIALIZED_TEST(DeoptimizeBinaryOperationADD) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -552,6 +541,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationADD) {
 
 
 UNINITIALIZED_TEST(DeoptimizeBinaryOperationSUB) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -582,6 +572,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationSUB) {
 
 
 UNINITIALIZED_TEST(DeoptimizeBinaryOperationMUL) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -612,6 +603,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationMUL) {
 
 
 UNINITIALIZED_TEST(DeoptimizeBinaryOperationDIV) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -642,6 +634,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationDIV) {
 
 
 UNINITIALIZED_TEST(DeoptimizeBinaryOperationMOD) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -672,6 +665,7 @@ UNINITIALIZED_TEST(DeoptimizeBinaryOperationMOD) {
 
 
 UNINITIALIZED_TEST(DeoptimizeCompare) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -715,7 +709,7 @@ UNINITIALIZED_TEST(DeoptimizeCompare) {
           "deopt = true;"
           "var result = f('a', new X());");
     }
-    NonIncrementalGC(i_isolate);
+    CcTest::CollectAllGarbage(i_isolate);
 
     CHECK(!GetJSFunction(env.local(), "f")->IsOptimized());
     CHECK_EQ(1, env->Global()
@@ -726,8 +720,7 @@ UNINITIALIZED_TEST(DeoptimizeCompare) {
     CHECK_EQ(true, env->Global()
                        ->Get(env.local(), v8_str("result"))
                        .ToLocalChecked()
-                       ->BooleanValue(env.local())
-                       .FromJust());
+                       ->BooleanValue(isolate));
     CHECK_EQ(0, Deoptimizer::GetDeoptimizedCodeCount(i_isolate));
   }
   isolate->Exit();
@@ -736,6 +729,7 @@ UNINITIALIZED_TEST(DeoptimizeCompare) {
 
 
 UNINITIALIZED_TEST(DeoptimizeLoadICStoreIC) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -813,7 +807,7 @@ UNINITIALIZED_TEST(DeoptimizeLoadICStoreIC) {
           "f2(new X(), 'z');"
           "g2(new X(), 'z');");
     }
-    NonIncrementalGC(i_isolate);
+    CcTest::CollectAllGarbage(i_isolate);
 
     CHECK(!GetJSFunction(env.local(), "f1")->IsOptimized());
     CHECK(!GetJSFunction(env.local(), "g1")->IsOptimized());
@@ -836,6 +830,7 @@ UNINITIALIZED_TEST(DeoptimizeLoadICStoreIC) {
 
 
 UNINITIALIZED_TEST(DeoptimizeLoadICStoreICNested) {
+  ManualGCScope manual_gc_scope;
   i::FLAG_concurrent_recompilation = false;
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
@@ -914,7 +909,7 @@ UNINITIALIZED_TEST(DeoptimizeLoadICStoreICNested) {
           "deopt = true;"
           "var result = f1(new X());");
     }
-    NonIncrementalGC(i_isolate);
+    CcTest::CollectAllGarbage(i_isolate);
 
     CHECK(!GetJSFunction(env.local(), "f1")->IsOptimized());
     CHECK(!GetJSFunction(env.local(), "g1")->IsOptimized());

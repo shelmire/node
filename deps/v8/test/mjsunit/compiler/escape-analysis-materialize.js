@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turbo --turbo-escape
+// Flags: --allow-natives-syntax --turbo-escape
 
 (function TestMaterializeArray() {
   function f() {
@@ -10,6 +10,7 @@
     %_DeoptimizeNow();
     return a.length;
   }
+  %PrepareFunctionForOptimization(f);
   assertEquals(3, f());
   assertEquals(3, f());
   %OptimizeFunctionOnNextCall(f);
@@ -22,6 +23,7 @@
     %_DeoptimizeNow();
     return fun.length;
   }
+  %PrepareFunctionForOptimization(g);
   assertEquals(2, g());
   assertEquals(2, g());
   %OptimizeFunctionOnNextCall(g);

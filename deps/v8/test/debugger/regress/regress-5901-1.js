@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --ignition --turbo
-
 function f() {
   throw new Error();
 }
@@ -20,6 +18,7 @@ function h() {
   return g();
 }
 
+%PrepareFunctionForOptimization(h);
 h();
 h();
 
@@ -44,7 +43,7 @@ function listener(event, exec_state, event_data, data) {
 
 Debug.setListener(listener);
 Debug.setBreakOnException();
-% OptimizeFunctionOnNextCall(h);
+%OptimizeFunctionOnNextCall(h);
 h();
 Debug.setListener(null);
 assertNull(exception);

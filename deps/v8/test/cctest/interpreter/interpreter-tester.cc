@@ -4,7 +4,9 @@
 
 #include "test/cctest/interpreter/interpreter-tester.h"
 
-#include "src/objects-inl.h"
+#include "src/api/api-inl.h"
+#include "src/heap/heap-inl.h"
+#include "src/objects/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -23,7 +25,6 @@ InterpreterTester::InterpreterTester(
       source_(source),
       bytecode_(bytecode),
       feedback_metadata_(feedback_metadata) {
-  i::FLAG_ignition = true;
   i::FLAG_always_opt = false;
 }
 
@@ -38,7 +39,7 @@ InterpreterTester::InterpreterTester(Isolate* isolate, const char* source,
     : InterpreterTester(isolate, source, MaybeHandle<BytecodeArray>(),
                         MaybeHandle<FeedbackMetadata>(), filter) {}
 
-InterpreterTester::~InterpreterTester() {}
+InterpreterTester::~InterpreterTester() = default;
 
 Local<Message> InterpreterTester::CheckThrowsReturnMessage() {
   TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate_));
@@ -68,6 +69,8 @@ std::string InterpreterTester::SourceForBody(const char* body) {
 std::string InterpreterTester::function_name() {
   return std::string(kFunctionName);
 }
+
+const char InterpreterTester::kFunctionName[] = "f";
 
 }  // namespace interpreter
 }  // namespace internal

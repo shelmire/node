@@ -1,7 +1,8 @@
 // Copyright 2016 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-// Flags: --expose_gc
+
+// Flags: --expose-gc
 
 let {session, contextGroup, Protocol} = InspectorTest.start("Tests that Runtime.awaitPromise works.");
 
@@ -26,6 +27,18 @@ function rejectPromise()
     rejectCallback(239);
     resolveCallback = undefined;
     rejectCallback = undefined;
+}
+
+function rejectPromiseWithAnError()
+{
+    rejectCallback(new Error('MyError'));
+    resolveCallback = undefined;
+    rejectCallback = undefined;
+}
+
+function throwError()
+{
+   throw new Error('MyError');
 }
 
 //# sourceURL=test.js`);
@@ -64,6 +77,21 @@ function testSuite()
       {
         var promise = Protocol.Runtime.awaitPromise({ promiseObjectId: result.result.result.objectId });
         Protocol.Runtime.evaluate({ expression: "rejectPromise()" });
+        return promise;
+      }
+    },
+
+    function testRejectedPromiseWithError(next)
+    {
+      Protocol.Runtime.evaluate({ expression: "createPromise()"})
+        .then(result => scheduleRejectAndAwaitPromise(result))
+        .then(result => InspectorTest.logMessage(result))
+        .then(() => next());
+
+      function scheduleRejectAndAwaitPromise(result)
+      {
+        var promise = Protocol.Runtime.awaitPromise({ promiseObjectId: result.result.result.objectId });
+        Protocol.Runtime.evaluate({ expression: "rejectPromiseWithAnError()" });
         return promise;
       }
     },

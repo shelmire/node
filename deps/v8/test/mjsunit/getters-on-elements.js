@@ -52,12 +52,16 @@ if (standalone) {
   assertUnoptimized = empty_func;
   assertOptimized = empty_func;
 
+  prepareForOptimize = emtpy_func;
   optimize = empty_func;
   clearFunctionTypeFeedback = empty_func;
   deoptimizeFunction = empty_func;
 } else {
   optimize = function(name) {
     %OptimizeFunctionOnNextCall(name);
+  }
+  prepareForOptimize = function(name) {
+    %PrepareFunctionForOptimization(name);
   }
   clearFunctionTypeFeedback = function(name) {
     %ClearFunctionFeedback(name);
@@ -76,11 +80,12 @@ function base_getter_test(create_func) {
   var ap = [];
   ap.__defineGetter__(0, function() { calls++; return 0; });
 
+  prepareForOptimize(foo);
   foo(a);
   assertUnoptimized(foo);
   // Smi and Double elements transition the KeyedLoadIC to Generic state
   // here, because they miss twice with the same map when loading the hole.
-  // For FAST_HOLEY_ELEMENTS, however, the IC knows how to convert the hole
+  // For HOLEY_ELEMENTS, however, the IC knows how to convert the hole
   // to undefined if the prototype is the original array prototype, so it
   // stays monomorphic for now...
   foo(a);
@@ -145,6 +150,7 @@ function base_getter_test(create_func) {
   a = create_func();
   ap2 = [];
   a.__proto__ = ap2;
+  prepareForOptimize(foo);
   foo(a);
   foo(a);
   foo(a);
@@ -165,6 +171,7 @@ function base_getter_test(create_func) {
   a = create_func();
   a.__proto__ = ap2;
   bar = function(a) { return a[3] + 600; }
+  prepareForOptimize(bar);
   bar(a);
   bar(a);
   bar(a);
@@ -207,6 +214,7 @@ for(var c = 0; c < cf.length; c++) {
 
 var a = [3.5,,,3.5];
 fun = function(a) { return a[0] + 5.5; }
+prepareForOptimize(fun);
 fun(a);
 fun(a);
 fun(a);  // should have a monomorphic KeyedLoadIC.
@@ -229,6 +237,7 @@ var a = [3.5,,,,3.5];
 var ap = [,,3.5];
 ap.__proto__ = a.__proto__;
 a.__proto__ = ap;
+prepareForOptimize(fun);
 fun(a);
 optimize(fun);
 fun(a);

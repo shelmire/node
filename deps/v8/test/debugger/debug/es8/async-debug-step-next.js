@@ -34,16 +34,16 @@ function g() {
 async function f() {
   var a = 1;
   debugger;        // B0 StepNext
-  a +=             // B1 StepNext
-       await       // B3 StepNext
-             g();  // B2 StepNext
-  return a;        // B4 StepNext
-}                  // B5 Continue
+  a +=
+       await       // B1 StepNext
+             g();
+  return a;        // B2 Continue
+}
 
 f();
 
 late_resolve(3);
 
-%RunMicrotasks();
+%PerformMicrotaskCheckpoint();
 
-assertEquals(6, step_count);
+assertEquals(3, step_count);

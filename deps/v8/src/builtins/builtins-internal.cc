@@ -4,19 +4,18 @@
 
 #include "src/builtins/builtins-utils.h"
 #include "src/builtins/builtins.h"
-#include "src/counters.h"
-#include "src/interface-descriptors.h"
-#include "src/objects-inl.h"
+#include "src/codegen/interface-descriptors.h"
+#include "src/logging/counters.h"
+#include "src/objects/objects-inl.h"
 
 namespace v8 {
 namespace internal {
 
 BUILTIN(Illegal) {
   UNREACHABLE();
-  return isolate->heap()->undefined_value();  // Make compiler happy.
 }
 
-BUILTIN(EmptyFunction) { return isolate->heap()->undefined_value(); }
+BUILTIN(EmptyFunction) { return ReadOnlyRoots(isolate).undefined_value(); }
 
 BUILTIN(UnsupportedThrower) {
   HandleScope scope(isolate);
@@ -24,17 +23,7 @@ BUILTIN(UnsupportedThrower) {
                                  NewError(MessageTemplate::kUnsupported));
 }
 
-// -----------------------------------------------------------------------------
-// Throwers for restricted function properties and strict arguments object
-// properties
-
-BUILTIN(RestrictedFunctionPropertiesThrower) {
-  HandleScope scope(isolate);
-  THROW_NEW_ERROR_RETURN_FAILURE(
-      isolate, NewTypeError(MessageTemplate::kRestrictedFunctionProperties));
-}
-
-BUILTIN(RestrictedStrictArgumentsPropertiesThrower) {
+BUILTIN(StrictPoisonPillThrower) {
   HandleScope scope(isolate);
   THROW_NEW_ERROR_RETURN_FAILURE(
       isolate, NewTypeError(MessageTemplate::kStrictPoisonPill));

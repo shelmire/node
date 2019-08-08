@@ -4,10 +4,10 @@
 
 #include "src/wasm/wasm-result.h"
 
-#include "src/factory.h"
+#include "src/execution/isolate-inl.h"
+#include "src/heap/factory.h"
 #include "src/heap/heap.h"
-#include "src/isolate-inl.h"
-#include "src/objects.h"
+#include "src/objects/objects.h"
 
 #include "src/base/platform/platform.h"
 
@@ -49,18 +49,11 @@ void PrintFToString(std::string& str, size_t str_offset, const char* format,
 
 }  // namespace
 
-void ResultBase::error(uint32_t offset, std::string error_msg) {
-  // The error message must not be empty, otherwise Result::failed() will be
-  // false.
-  DCHECK(!error_msg.empty());
-  error_offset_ = offset;
-  error_msg_ = std::move(error_msg);
-}
-
-void ResultBase::verror(const char* format, va_list args) {
-  VPrintFToString(error_msg_, 0, format, args);
-  // Assign default message such that ok() and failed() work.
-  if (error_msg_.empty() == 0) error_msg_.assign("Error");
+// static
+std::string WasmError::FormatError(const char* format, va_list args) {
+  std::string result;
+  VPrintFToString(result, 0, format, args);
+  return result;
 }
 
 void ErrorThrower::Format(ErrorType type, const char* format, va_list args) {
@@ -133,15 +126,11 @@ Handle<Object> ErrorThrower::Reify() {
       constructor = isolate_->wasm_runtime_error_function();
       break;
   }
-  Vector<const uint8_t> msg_vec(
-      reinterpret_cast<const uint8_t*>(error_msg_.data()),
-      static_cast<int>(error_msg_.size()));
-  Handle<String> message =
-      isolate_->factory()->NewStringFromOneByte(msg_vec).ToHandleChecked();
-  error_type_ = kNone;  // Reset.
-  Handle<Object> exception =
-      isolate_->factory()->NewError(constructor, message);
-  return exception;
+  Handle<String> message = isolate_->factory()
+                               ->NewStringFromUtf8(VectorOf(error_msg_))
+                               .ToHandleChecked();
+  Reset();
+  return isolate_->factory()->NewError(constructor, message);
 }
 
 void ErrorThrower::Reset() {
@@ -149,17 +138,20 @@ void ErrorThrower::Reset() {
   error_msg_.clear();
 }
 
-ErrorThrower::ErrorThrower(ErrorThrower&& other)
+ErrorThrower::ErrorThrower(ErrorThrower&& other) V8_NOEXCEPT
     : isolate_(other.isolate_),
       context_(other.context_),
       error_type_(other.error_type_),
-      error_msg_(other.error_msg_) {
+      error_msg_(std::move(other.error_msg_)) {
   other.error_type_ = kNone;
 }
 
 ErrorThrower::~ErrorThrower() {
   if (error() && !isolate_->has_pending_exception()) {
-    isolate_->ScheduleThrow(*Reify());
+    // We don't want to mix pending exceptions and scheduled exceptions, hence
+    // an existing exception should be pending, never scheduled.
+    DCHECK(!isolate_->has_scheduled_exception());
+    isolate_->Throw(*Reify());
   }
 }
 

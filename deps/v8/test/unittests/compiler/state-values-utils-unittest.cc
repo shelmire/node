@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "src/compiler/state-values-utils.h"
-#include "src/bit-vector.h"
+#include "src/utils/bit-vector.h"
 #include "test/unittests/compiler/graph-unittest.h"
 #include "test/unittests/compiler/node-test-utils.h"
 #include "test/unittests/test-utils.h"
@@ -45,10 +45,12 @@ TEST_F(StateValuesIteratorTest, SimpleIteration) {
 TEST_F(StateValuesIteratorTest, EmptyIteration) {
   NodeVector inputs(zone());
   Node* state_values = StateValuesFromVector(&inputs);
+  bool empty = true;
   for (auto node : StateValuesAccess(state_values)) {
     USE(node);
-    FAIL();
+    empty = false;
   }
+  EXPECT_TRUE(empty);
 }
 
 

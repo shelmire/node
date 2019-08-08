@@ -21,17 +21,20 @@
 
 'use strict';
 const common = require('../common');
+const fixtures = require('../common/fixtures');
 
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
 const assert = require('assert');
 const https = require('https');
-const fs = require('fs');
+
+// Assert that the IP-as-servername deprecation warning does not occur.
+process.on('warning', common.mustNotCall());
 
 const options = {
-  key: fs.readFileSync(`${common.fixturesDir}/keys/agent1-key.pem`),
-  cert: fs.readFileSync(`${common.fixturesDir}/keys/agent1-cert.pem`)
+  key: fixtures.readKey('agent1-key.pem'),
+  cert: fixtures.readKey('agent1-cert.pem')
 };
 
 const tests = 2;

@@ -8,9 +8,10 @@
   'use strict';
 
   function testBaselineAndOpt(func) {
+    %PrepareFunctionForOptimization(func);
     func(-1, -2);
     func(-1, -2);
-    % OptimizeFunctionOnNextCall(func);
+    %OptimizeFunctionOnNextCall(func);
     return func(-1, -2);
   }
 
@@ -76,9 +77,10 @@
 
 (function() {
   function testBaselineAndOpt(func) {
+    %PrepareFunctionForOptimization(func);
     func(-1, -2);
     func(-1, -2);
-    % OptimizeFunctionOnNextCall(func);
+    %OptimizeFunctionOnNextCall(func);
     return func(-1, -2);
   }
 
